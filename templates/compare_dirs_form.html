@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			add dirs<br>
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<label for="name">Compare dirs:</label>
+				<input type="text" id="dir_a_id" name="dir_a_id" title="dir_a_id" required >
+				<input type="text" id="dir_b_id" name="dir_b_id" title="dir_b_id" required >
+				
+				
+				<input type="submit" value="Compare dir">
+			</form>
+		<br>
+		</div>
+    
+    </body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- ver0.1 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			check_dir_for_etalon_files<br>
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<textarea name="path_to_dir" title="Path to dir" cols="120" maxlength="1000" rows="20"></textarea>
+				<br>
+				<br>
+				<input type="submit" value="Run check">
+			</form>
+			
+		</div>
+    
+    </body>
+</html>

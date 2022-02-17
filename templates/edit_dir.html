@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			add dirs<br>
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<label for="name">Full path:</label>
+				<input type="text" id="full_path" name="full_path" title="full_path" required value="{{dir.full_path}}"><br>
+				
+				<label for="comment">Comment:</label><br>
+				<textarea name="comment" title="Comment" cols="120" maxlength="1000" rows="20">{{ dir.comment | empty_on_None }}</textarea>
+				<br>
+				<br>
+				<label><input type="checkbox" name="is_etalon" value="is_etalon" {% if dir.is_etalon %}checked{% endif %}>Is etalon </label><br>
+				<br>
+				<br>
+				
+				<input type="submit" value="Save dir">
+			</form>
+		<br>
+		<br>
+		{% if is_saved %} DIR SAVED! <br>{% endif %}
+		</div>
+    
+    </body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!-- ver1.0 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Directory <br>
+			{{dir.full_path}}
+			<br>
+			<br>
+			[<a href="/find-copies/{{ dir.id }}" title="find copies">find copies</a>]<br>
+			<!-- [<a href="/delete-duplicates/{{ dir.id }}" title="delete duplicates">delete duplicates</a>]<br>
+			[<a href="/check-dir-for-etalon-files/{{ dir.id }}" title="add dir">check dir for etalon files</a>]<br> -->
+<!-- 			[<a href="/check-dir/{{dir.id}}" title="check">check actual checksums</a>]<br> -->
+		<!-- 	[<a href="/split-dir/{{dir.id}}" title="split">split dir into subdirs</a>]<br> -->
+			[<a href="/delete-dir/{{ dir.id }}" title="">delete dir</a>]<br>
+			<br>
+			<br>
+			Is etalon: {% if dir.is_etalon %}yes{% else %}no{% endif %}<br>
+			Total files: {{dir.files | length}}<br>
+			Comment: {{ dir.comment }}<br>
+			<br>------ FILES:-------<br>
+			
+			<br>
+			<br>
+			{% for f in dir.files %} {{f.full_path}} - [<a href="/search-files-by-checksum/{{ f.checksum }}" title="find with the same checksum">{{ f.checksum }}</a>] [<a href="/show-file/{{f.id}}" title="show">show</a>] [<a href="/delete-file/{{f.id}}" title="delete">delete</a>] <br>  {% endfor %}<br>
+			<br>
+			<br>
+			<br>
+		</div>
+    
+    </body>
+</html>

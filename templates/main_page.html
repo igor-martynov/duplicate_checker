@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Duplicate Checker v {{ version }}<br>
+			
+			<br>
+			<br>
+			<br>
+			<!-- [<a href="/scan-for-etalons" title="scan dirs for etalon subdirs">scan-for-etalons</a>]<br> -->
+			<!-- {% for d in dirs %} {{d | string}} <a href="/show-dir/{{d.id}}" title="show">show</a> <a href="/delete-dir/{{d.id}}" title="delete">delete</a>  <br> {% endfor %}<br> -->
+			<br>
+			<br>
+			[<a href="/add-dir" title="add dir">add dir</a>]<br>
+			<br>
+			<!-- [<a href="/compare-dirs-form" title="compare dirs">compare dirs</a>]<br> -->
+			[<a href="/show-all-tasks" title="show tasks">show tasks</a>]<br>
+			<br>
+			Tasks:<br>
+			{% for t in tasks%} {{ t | string }} - {{ t.is_running }} <br> {% endfor %}<br>
+			
+			[<a href="/compare-dirs-form" title="compare dirs form">compare dirs form</a>]<br>			
+			[<a href="/compile-new-dir" title="compile new dir">compile new dir</a>]<br>
+			[<a href="/exit" title="exit from app">exit</a>]<br>
+			[<a href="/delete-dead-data" title="delete dead data">delete dead data</a>]<br>
+			[<a href="/show-log" title="show log">show log</a>]<br>
+			[<a href="/shutdown-app" title="shutdown app">shutdown app</a>]<br>
+		</div>
+    
+    </body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Dirs:<br>
+			<br>
+			<br>
+			<br>
+			{% for d in dirs %} <a href="/show-dir/{{d.id}}" title="show">{{d.full_path}}</a> [<a href="/delete-dir/{{d.id}}" title="delete">delete</a>] [<a href="/check-dir/{{d.id}}" title="check">check</a>] [<a href="/edit-dir/{{d.id}}" title="edit">edit</a>] <br><br> {% endfor %}<br>
+			<br>
+			<br>
+			<br>
+
+		</div>
+    
+    </body>
+</html>
