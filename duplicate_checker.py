@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-02-17
+# 2022-02-20
 
-__version__ = "0.5.3"
+__version__ = "0.5.6"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -21,6 +21,7 @@ import os
 import datetime
 import time
 import glob
+import configparser
 
 # logging
 import logging
@@ -66,14 +67,21 @@ What app should do:
 class DuplicateChecker(object):
 	"""DuplicateChecker app"""
 	
-	def __init__(self, db_file = "", log_file = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.log")):
+	def __init__(self, db_file = None, config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "duplicate_checker.conf")):
 		super(DuplicateChecker, self).__init__()
 		
 		# config
-		
+		self.CONFIG_FILE = config_file
+		self._config = configparser.ConfigParser()
+		self._config.read(self.CONFIG_FILE)
 		
 		# logging
-		self.LOG_FILE = log_file 
+		if os.sep not in self._config.get("main", "log_file"):
+			self.LOG_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "log_file"))
+			print(f"Using relative path to log file: {self.LOG_FILE}")
+		else:
+			self.LOG_FILE = self._config.get("main", "log_file")
+			print(f"Using absolute path to log file: {self.LOG_FILE}")
 		self.rotate_logs()
 		self._logger = logging.getLogger("duplicate_checker")
 		self._logger.setLevel(logging.DEBUG)
@@ -85,7 +93,17 @@ class DuplicateChecker(object):
 		
 		self._logger.debug("======== duplicate_checker starting, version " + __version__ + " ========")
 		
-		self.DB_FILE = db_file
+		
+		if db_file is not None:
+			self.DB_FILE = db_file
+		else:
+			if os.sep not in self._config.get("main", "db_file"):
+				self.DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "db_file"))
+				print(f"Using relative path to DB file: {self.DB_FILE}")
+			else:
+				self.DB_FILE = self._config.get("main", "db_file")
+				print(f"Using absolute path to DB file: {self.DB_FILE}")
+
 		
 		# sqlalchemy
 		self._engine = None
@@ -135,20 +153,19 @@ class DuplicateChecker(object):
 class DuplicateCheckerFlask(DuplicateChecker):
 	"""DuplicateChecker web app with Flask"""
 	
-	def __init__(self, db_file = "",
-		log_file = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.log")):
-		super(DuplicateCheckerFlask, self).__init__(db_file = db_file, log_file = log_file)
+	def __init__(self, db_file = "", config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "duplicate_checker.conf")):
+		super(DuplicateCheckerFlask, self).__init__(db_file = db_file, config_file = config_file)
 		
 		# web interface
-		self.port = 80
-		self.addr = "0.0.0.0"
+		self.port = int(self._config.get("web", "port"))
+		self.addr = self._config.get("web", "host")
 		
 		pass
 	
 	
 	def run_web_app(self):
 		web_app = Flask(__name__)
-		web_app.secret_key = "qwejvplwnfpeuyxghwektswzwerlf3"
+		web_app.secret_key = self._config.get("web", "secret")
 		
 		
 		
@@ -287,14 +304,14 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		# TODO: under construction
 		# check dir actual sums
-		@web_app.route("/check-dir-actual-sums/<int:dir_id>", methods = ["GET"])
-		def check_dir_actual_sums():
+		@web_app.route("/check-dir/<int:dir_id>", methods = ["GET"])
+		def check_dir(dir_id):
 			target_dir = self.dir_manager.get_by_id(dir_id)
 			if target_dir is None:
 				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
 			if request.method == "GET":
-				pass
-				return render_template("blank_page.html", page_text = f"Dir {target_dir.full_path} is being checked...")
+				self.task_manager.check_dir(target_dir)
+				return render_template("blank_page.html", page_text = f"Task created for dir {target_dir.full_path} check, see tasks")
 			pass
 		
 		
@@ -375,13 +392,11 @@ if __name__ == "__main__":
 	
 	if "--db-file" in sys.argv[1:]:
 		DB_FILE = sys.argv[sys.argv.index("--db-file") + 1]
-		print(f"using DB_FILE {DB_FILE}")
+		print(f"Using DB file from command arguments: {DB_FILE}")
 	else:
 		DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.db")
-	print(f"using DB_FILE {DB_FILE}")
 	
 
 	dc = DuplicateCheckerFlask(db_file = DB_FILE)
-	# dc.load_all()
 	dc.run_web_app()
 	pass

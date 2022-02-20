@@ -98,9 +98,9 @@ class FileManager(BaseManager):
 	
 	responsible for: all file operations: get by id, get by checksum, 
 	"""
+	
 	def __init__(self, session = None, logger = None):
 		super(FileManager, self).__init__(session = session, logger = logger)
-		
 		pass
 	
 	
@@ -112,7 +112,7 @@ class FileManager(BaseManager):
 	
 	def get_by_checksum(self, checksum):
 		res = self._session.query(File).filter(File.checksum == checksum).all()
-		self._logger.debug(f"get_by_checksum: for input {checksum} will return {[f.full_path for f in res]}")
+		# self._logger.debug(f"get_by_checksum: for input {checksum} will return {[f.full_path for f in res]}")
 		return res
 	
 	
@@ -264,9 +264,15 @@ class TaskManager(BaseManager):
 	
 	
 	def find_copies(self, target_dir):
-		new_task = FindCopiesTask(target_dir, logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = FindCopiesTask(target_dir, logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager, is_etalon = False)
 		self.add_task(new_task)
-		pass
+		return new_task
+		
+	
+	def check_dir(self, target_dir):
+		new_task = CheckDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		self.add_task(new_task)
+		return new_task
 	
 	
 	def task_is_running(self):

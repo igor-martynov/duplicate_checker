@@ -106,8 +106,8 @@ class MetaSingleton(type):
 		if cls not in cls._instances or kwargs["db_file"] not in cls._dbfs:
 			cls._instances[cls] = super(MetaSingleton, cls).__call__(*args, **kwargs)
 			# cls._dbfs.append(kwargs["db_file"])
-			print("D new instance of class created - " + str(cls._instances[cls]))
-		print("D total instances - " + str(cls._instances))
+			# print("D new instance of class created - " + str(cls._instances[cls]))
+		# print("D total instances - " + str(cls._instances))
 		return cls._instances[cls]
 
 
@@ -121,10 +121,9 @@ class MetaSingletonByDBFile(type):
 	def __call__(cls, *args, **kwargs):
 		print("D will search class for db_file " + kwargs["db_file"])
 		if kwargs["db_file"] not in cls._dbfiles:
-			# cls._instances[cls] = super(MetaSingletonByDBFile, cls).__call__(*args, **kwargs)
 			cls._dbfiles[kwargs["db_file"]] = super(MetaSingletonByDBFile, cls).__call__(*args, **kwargs)
-			print("D new instance of class created - " + str(cls._dbfiles[kwargs["db_file"]]))
-		print("D total instances - " + str(cls._dbfiles))
+			# print("D new instance of class created - " + str(cls._dbfiles[kwargs["db_file"]]))
+		# print("D total instances - " + str(cls._dbfiles))
 		return cls._dbfiles[kwargs["db_file"]]
 
 
