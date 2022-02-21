@@ -122,8 +122,8 @@ class FileManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_file, checksum = "", date_added = None, is_etalon = False):
-		new_file = File(full_path = path_to_file, checksum = checksum, date_added = date_added, is_etalon = is_etalon)
+	def create(self, path_to_file, checksum = "", date_added = None, date_checked = None, is_etalon = False, comment = ""):
+		new_file = File(full_path = path_to_file, checksum = checksum, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
 		self._session.add(new_file)
 		return new_file
 
@@ -155,8 +155,9 @@ class DirManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False):
-		new_dir = Directory(full_path = path_to_dir, date_added = datetime.datetime.now(), is_etalon = is_etalon)
+	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = ""):
+		# now = datetime.datetime.now()
+		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
 		self._session.add(new_dir)
 		return new_dir
 	
@@ -243,7 +244,7 @@ class TaskManager(BaseManager):
 	
 	def add_directory(self, path_to_dir, is_etalon = False):
 		if not os.path.isdir(path_to_dir):
-			self._logger.info("add_directory: will not add dir {path_to_dir} as it is not a dir")
+			self._logger.info(f"add_directory: will not add dir {path_to_dir} as it is not a dir")
 			return None
 		if self._dir_manager.directory_exist(path_to_dir):
 			self._logger.info(f"add_directory: directory {path_to_dir} already exist, not adding it")

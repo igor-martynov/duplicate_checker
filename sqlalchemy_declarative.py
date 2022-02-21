@@ -17,6 +17,8 @@ from sqlalchemy import create_engine
 
 DeclarativeBase = declarative_base()
 
+
+
 class Directory(DeclarativeBase):
 	"""Directory class"""
 	
@@ -27,8 +29,8 @@ class Directory(DeclarativeBase):
 	date_checked = Column(DateTime, nullable = False)
 	# name = Column(String, nullable = False)
 	full_path = Column(String, nullable = False)
-	comment = Column(String, nullable = False)
-	deleted = Column(Boolean, nullable = False)
+	comment = Column(String, nullable = True)
+	deleted = Column(Boolean, nullable = False, default = False)
 	files = relationship("File", back_populates = "dir")
 	
 
@@ -40,12 +42,12 @@ class File(DeclarativeBase):
 	id = Column(Integer, primary_key = True)
 	is_etalon = Column(Boolean, nullable = False)
 	date_added = Column(DateTime, nullable = False)
-	date_checked = Column(DateTime, nullable = False)
+	date_checked = Column(DateTime, nullable = True)
 	# name = Column(String(250), nullable = False)
 	full_path = Column(String, nullable = False)
-	checksum = Column(String, nullable = False)
-	comment = Column(String, nullable = False)
-	deleted = Column(Boolean, nullable = False)
+	checksum = Column(String, nullable = True)
+	comment = Column(String, nullable = True)
+	deleted = Column(Boolean, nullable = False, default = False)
 	dir_id = Column(Integer, ForeignKey("dirs.id"))
 	dir = relationship("Directory", back_populates = "files")
 	

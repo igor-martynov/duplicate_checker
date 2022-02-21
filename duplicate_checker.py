@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-02-20
+# 2022-02-21
 
 __version__ = "0.5.6"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
@@ -11,7 +11,7 @@ __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 """This app stores, compares and manages lists of checksums of files.
 
-Originally written to manage photo collection and store checksums of files.
+Originally written to manage photo collection and store checksums of RAW files.
 """
 
 
@@ -33,7 +33,6 @@ import traceback
 from flask import Flask, request, Response, render_template, redirect, url_for, session, g
 
 
-# sys.path.append("./")
 from base import *
 from managers import *
 
@@ -119,10 +118,24 @@ class DuplicateChecker(object):
 		pass
 	
 	
+	def create_DB_schema(self):
+		self._logger.debug("create_DB_schema: starting")
+		File.__table__.create(bind = self._engine, checkfirst = True)
+		Directory.__table__.create(bind = self._engine, checkfirst = True)
+		pass
+	
+	
 	def init_DB_orm(self):
 		self._logger.debug(f"init_DB_orm: starting. will use db file {self.DB_FILE}")
 		self._engine = create_engine(f"sqlite:///{self.DB_FILE}", connect_args = {"check_same_thread": False})
 		DeclarativeBase.metadata.bind = self._engine
+		# if not os.path.exists(self.DB_FILE):
+		# 	self._logger.debug("init_DB_orm: DB file does not exist, will try to create it")
+		# 	DeclarativeBase.metadata.create_all(self._engine)
+		# 	self._logger.debug("init_DB_orm: all created, will continue")
+		
+		self.create_DB_schema()
+		
 		from sqlalchemy.orm import sessionmaker
 		DBSession = sessionmaker(autocommit = False, autoflush = False)
 		DBSession.bind = self._engine
@@ -159,7 +172,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# web interface
 		self.port = int(self._config.get("web", "port"))
 		self.addr = self._config.get("web", "host")
-		
 		pass
 	
 	
@@ -216,7 +228,10 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				try:
 					for d in dirs:
 						if not add_subdirs:
-							self.task_manager.add_directory(normalize_path_to_dir(d), is_etalon = is_etalon)
+							if not os.path.isdir(d):
+								self._logger.info(f"add_directory: {d} is not a dir, will not add it")
+							else:
+								self.task_manager.add_directory(normalize_path_to_dir(d), is_etalon = is_etalon)
 						else:
 							subdirs = []
 							subdirs = glob.glob(os.path.join(d, "*/"), recursive = False)
@@ -224,6 +239,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 							for p in subdirs:
 								if os.path.isdir(p):
 									self.task_manager.add_directory(normalize_path_to_dir(p), is_etalon = is_etalon)
+								else:
+									self._logger.info(f"add_directory: will not add subdir {p} of dir {d} - it is not a dir, ignoring")
 				except Exception as e:
 					self._logger.error(f"add_directory: could not add dirs - got error {e}, traceback: {traceback.format_exc()}")
 					return render_template("blank_page.html", page_text = f"ERROR: {e}, traceback: {traceback.format_exc()}")
@@ -302,8 +319,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("blank_page.html", page_text = "task launched.")
 		
 		
-		# TODO: under construction
-		# check dir actual sums
 		@web_app.route("/check-dir/<int:dir_id>", methods = ["GET"])
 		def check_dir(dir_id):
 			target_dir = self.dir_manager.get_by_id(dir_id)
@@ -312,7 +327,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				self.task_manager.check_dir(target_dir)
 				return render_template("blank_page.html", page_text = f"Task created for dir {target_dir.full_path} check, see tasks")
-			pass
 		
 		
 		# check dir has copies
@@ -358,7 +372,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		def start_all_tasks():
 			if request.method == "GET":
 				self.task_manager.start_all_tasks_successively()
-				return render_template("blank_page.html", page_text = "All task started!")
+				return redirect("/show-all-tasks")
 		
 		
 		
@@ -394,7 +408,8 @@ if __name__ == "__main__":
 		DB_FILE = sys.argv[sys.argv.index("--db-file") + 1]
 		print(f"Using DB file from command arguments: {DB_FILE}")
 	else:
-		DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.db")
+		# DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.db")
+		DB_FILE = None
 	
 
 	dc = DuplicateCheckerFlask(db_file = DB_FILE)

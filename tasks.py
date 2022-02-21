@@ -193,11 +193,12 @@ class AddDirTask(BaseTask):
 	
 	
 	def create_directory_and_files(self, result):
-		new_dir = self._dir_manager.create(self.target_dir, is_etalon = self.is_etalon)
+		now = datetime.datetime.now()
+		new_dir = self._dir_manager.create(self.target_dir, is_etalon = self.is_etalon, date_added = now, date_checked = now)
 		files = []
 		for r in result:
 			# print(f"R: {r['full_path']}: {r['checksum']}")
-			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], is_etalon = self.is_etalon))
+			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon))
 		new_dir.files = files
 		self._logger.info(f"create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
 		self.new_dir = new_dir
