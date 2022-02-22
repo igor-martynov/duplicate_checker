@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-02-21
+# 2022-02-22
 
-__version__ = "0.5.6"
+__version__ = "0.5.7"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -122,7 +122,7 @@ class DuplicateChecker(object):
 		self._logger.debug("create_DB_schema: starting")
 		File.__table__.create(bind = self._engine, checkfirst = True)
 		Directory.__table__.create(bind = self._engine, checkfirst = True)
-		pass
+		self._logger.debug("create_DB_schema: complete")
 	
 	
 	def init_DB_orm(self):
@@ -244,7 +244,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				except Exception as e:
 					self._logger.error(f"add_directory: could not add dirs - got error {e}, traceback: {traceback.format_exc()}")
 					return render_template("blank_page.html", page_text = f"ERROR: {e}, traceback: {traceback.format_exc()}")
-				return render_template("add_dir.html")
+				return render_template("add_dir.html", msg_text = f"dir(s) added")
 		
 		
 		@web_app.route("/delete-file/<int:file_id>", methods = ["GET", "POST"])
@@ -325,6 +325,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if target_dir is None:
 				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
 			if request.method == "GET":
+				if not os.path.isdir(target_dir.full_path):
+					return render_template("blank_page.html", page_text = f"Cannot check directory {target_dir.full_path} - it does not exist or is unavailable")
 				self.task_manager.check_dir(target_dir)
 				return render_template("blank_page.html", page_text = f"Task created for dir {target_dir.full_path} check, see tasks")
 		
