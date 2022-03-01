@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-02-22
+# 2022-03-01
 
-__version__ = "0.5.7"
+__version__ = "0.5.8"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -160,6 +160,25 @@ class DuplicateChecker(object):
 			os.rename(self.LOG_FILE, self.LOG_FILE + OLD_LOG_POSTFIX)
 		except Exception as e:
 			print(f"could not rotate log file {self.LOG_FILE}, will use unrotated file!")
+	
+	def backup_DB(self):
+		import shutil
+		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
+		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
+		self._logger.debug(f"backup_DB: will backup DB file {self.DB_FILE}")
+		if not self.task_manager.task_is_running():
+			try:
+				shutil.copy(self.DB_FILE, DEST_FILENAME)
+				self._logger.info(f"backup_DB: DB backed up to file {DEST_FILENAME}")
+				return True
+			except Exception as e:
+				self._logger.error(f"backup_DB: could not backup DB, got error {e}, exception: {traceback.format_exc()}")
+				return False
+		else:
+			self._logger.debug("backup_DB: could not backup DB because task is running.")
+			return False
+		pass
+
 
 
 
@@ -312,10 +331,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = f"ERROR Directory A with id {dir_a_id} does not exist!")
 				if dir_b is None:
 					return render_template("blank_page.html", page_text = f"ERROR Directory B with id {dir_b_id} does not exist!")
-				
 				# launch comparison
 				self.task_manager.compare_directories(dir_a, dir_b)
-				
 				return render_template("blank_page.html", page_text = "task launched.")
 		
 		
@@ -376,6 +393,18 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				self.task_manager.start_all_tasks_successively()
 				return redirect("/show-all-tasks")
 		
+		
+		@web_app.route("/backup-db", methods = ["GET"])
+		def backup_DB():
+			if request.method == "GET":
+				self._logger.debug("backup_DB: will try to start backup of DB")
+				if self.backup_DB():
+					return render_template("blank_page.html", page_text = "DB backup OK")
+				else:
+					return render_template("blank_page.html", page_text = "DB backup FAILED")
+					
+				
+			pass
 		
 		
 		web_app.jinja_env.filters["empty_on_None"] = empty_on_None
