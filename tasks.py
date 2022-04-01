@@ -45,7 +45,6 @@ class BaseTask(object):
 		self.__report = ""
 		
 		self.save_results = True
-		# self.URL = ""
 		
 		
 	@property		
@@ -60,6 +59,7 @@ class BaseTask(object):
 			return f"IN PROGRESS, FAIL ({(self.progress * 100):.1f}%)"
 		if not self.OK and not self.running:
 			return "COMPLETE FAILED"
+	
 	
 	@property
 	def progress(self):
@@ -110,6 +110,11 @@ class BaseTask(object):
 	
 	def save(self):
 		raise NotImplemented
+	
+	
+	@property
+	def preview_html(self):
+		return f"Preview of {self.__name__}<br>"
 	
 	
 	@property
@@ -192,13 +197,13 @@ class AddDirTask(BaseTask):
 		return
 	
 	
-	def create_directory_and_files(self, result):
+	def create_directory_and_files(self, result, save = True):
 		now = datetime.datetime.now()
-		new_dir = self._dir_manager.create(self.target_dir, is_etalon = self.is_etalon, date_added = now, date_checked = now)
+		new_dir = self._dir_manager.create(self.target_dir, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save)
 		files = []
 		for r in result:
 			# print(f"R: {r['full_path']}: {r['checksum']}")
-			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon))
+			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon), save = save)
 		new_dir.files = files
 		self._logger.info(f"create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
 		self.new_dir = new_dir
@@ -421,9 +426,14 @@ class FindCopiesTask(BaseTask):
 		super(FindCopiesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
 		
 		self.target_dir = target_dir
-		self.file_dict = {}
-		
+		self.file_dict = {} # key: original file object, value: list of copies (file objects)
+		self.copies_dict = {} # key: dir that contains copy, value: 
 		pass
+	
+	
+	@property
+	def descr(self):
+		return f"FindCopiesTask for {self.target_dir.full_path}"
 	
 	
 	def run(self):
@@ -431,48 +441,104 @@ class FindCopiesTask(BaseTask):
 		self.mark_start()
 		self.file_dict = {}
 		for f in self.target_dir.files:
-			self.file_dict[f.full_path] = []
+			self.file_dict[f] = []
 		self._logger.debug("run: file_dict pre-created, checking files...")
 		
 		total_files = len(self.target_dir.files)
 		for f in self.target_dir.files:
-			candidates = self._file_manager.get_by_checksum(f.checksum)
+			self._logger.debug(f"run: checking file {f.full_path}...")
+			# candidates = self._file_manager.get_by_checksum(f.checksum)
+			candidates = self._file_manager.find_copies(f)
 			self._progress = self.target_dir.files.index(f) / total_files
 			for c in candidates:
 				if c.dir == self.target_dir or c.dir.full_path == self.target_dir.full_path:
 					self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}")
 					continue
 				if f.name == c.name:
-					self._logger.debug(f"run: adding copy {c.id} - {c.full_path} for target file {f.full_path}")
-					self.file_dict[f.full_path].append(c)
+					# self._logger.debug(f"run: adding copy {c.id} - {c.full_path} for target file {f.full_path}")
+					self.file_dict[f].append(c)
+				else:
+					self._logger.info(f"run: should add file {c.full_path} as copy, but it as different name. original name is {f.name}. So did not add.")
 		
-		self._logger.debug("run: file checking complete.")
+		self._logger.debug("run: file checking complete, file_dict filled.")
+		self._logger.debug(f"run: file_dict: {self.file_dict}")
 		self._logger.debug("run: run complete.")
 		self.mark_end()
 	
 	
+	
+	
+	# def get_copies_stats(self):
+	# 	self._logger.debug("get_copies_stats: starting")
+	# 	self.copies_dict = {}
+	# 	try:
+	# 		for f in self.file_dict.keys():
+	# 			_dir = os.path.dirname(f)
+	# 			self._logger.debug(f"get_copies_stats: dir {_dir}")
+	# 			if _dir not in self.copies_dict.keys():
+	# 				self.copies_dict[_dir] = []
+	# 				self._logger.debug(f"get_copies_stats: added empty list of files for dir {_dir}")
+	# 			self.copies_dict[_dir].extend(f)
+	# 			self._logger.debug(f"get_copies_stats: added file-copy {f} for dir {_dir}")
+	# 		self._logger.debug(f"get_copies_stats: complete. ")
+	# 		for d in self.copies_dict.keys():
+	# 			self._logger.debug(f"get_copies_stats: dir: {d} - {len(self.copies_dict[d])} copies - full copy: {len(self.copies_dict[d]) == len(self.target_dir.files)}")
+	# 	except Exception as e:
+	# 		self._logger.error(f"get_copies_stats: got error {e}, traceback: {traceback.format_exc()}")
+	# 	return self.copies_dict
+	
+	
+	def get_copies_stats(self):
+		"""just trasnpose file_dict into copies_dict"""
+		self._logger.debug("get_copies_stats: starting")
+		self.copies_dict = {}
+		for k, v in self.file_dict.items():
+			for _copy in v:
+				_copy_dir = _copy.dir
+				if _copy_dir not in self.copies_dict.keys():
+					self.copies_dict[_copy_dir] = [k, ]
+				else:
+					self.copies_dict[_copy_dir].append(k)
+		self._logger.debug("get_copies_stats: complete")
+		pass
+	
+	
 	@property
 	def result_html(self):
+		self._logger.debug("result_html: starting")
 		self.__report = "\n\nStatus: " + str(self.state) + "\n"
 		
 		self.__report += "\nDir: " + self.target_dir.full_path + "\n"
 		self.__report += f"({len(self.target_dir.files)} files.)" + "\n\n"
 		
+		self.get_copies_stats()
+		
 		no_copies_list = []
 		for k, v in self.file_dict.items():
 			if len(v) == 0:
 				no_copies_list.append(k)
+		self._logger.debug("result_html: stage 1 complete")
 		self.__report += f"files without copies: {len(no_copies_list)}" + "\n"
-		for i in no_copies_list:
-			self.__report += i + "\n"
+		for f in no_copies_list:
+			self.__report += f.full_path + "\n"
 		self.__report += "\n\n"
 		
+		# self.__report += f"Copies dirs: {self.copies_dict.keys}" + "\n\n"
+		self._logger.debug("result_html: stage 2 complete")
+		self.__report += "Copies:\n"
+		for d in self.copies_dict.keys():
+			if len(self.copies_dict[d]) == len(self.target_dir.files):
+				self.__report += f"Copy: {d.full_path} -- FULL COPY" + "\n"
+			else:
+				self.__report += f"Copy: {d.full_path} -- {len(self.copies_dict[d])} files of {len(self.target_dir.files)}" + "\n"
+		self.__report += "\n\n"
+		self._logger.debug("result_html: stage 3 complete")
 		self.__report += "All files:\n"
 		for k, v in self.file_dict.items():
-			self.__report += f"f: {k}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
-		self.__report += f"Task took: {self.duration}s"
+			self.__report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
+		self.__report += "\n\n" + f"Task took: {self.duration}s"
+		self._logger.debug(f"result_html: report: {self.__report}")
 		return self.__report.replace("\n", "<br>\n")
-		pass
 	
 
 
@@ -505,7 +571,7 @@ class CheckDirTask(AddDirTask):
 		dict_length = len(dict_list)
 		result = self._create_multiprocessing_pool(dict_list)
 		self.wait_till_complete(result, dict_list)
-		self.create_directory_and_files(result)
+		self.create_directory_and_files(result, save = False)
 		# not saving temporal dir - to keep DB clean
 		# self._progress = 0.5	
 		self.compare_dirs_old_and_new()
@@ -516,7 +582,7 @@ class CheckDirTask(AddDirTask):
 	
 	@property
 	def descr(self):
-		return f"CheckDirTask for {self.target_dir}"
+		return f"CheckDirTask for {self.target_dir.full_path}"
 	
 	
 	@property
@@ -535,3 +601,90 @@ class CheckDirTask(AddDirTask):
 		else:
 			return (self._progress) / 2
 	
+
+
+# TODO: under development
+class SplitDirTask(BaseTask):
+	"""docstring for SplitDirTask"""
+	
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
+		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+		
+		self.dir_obj = target_dir
+		
+		self.subdirs = []
+		self.subdir_path_dict = dict()
+		
+		pass
+	
+	
+	@property
+	def descr(self):
+		return f"SplitDirTask for {self.dir_obj.full_path}"
+	
+	
+	def get_dict_of_subdirs(self):
+		self.subdir_path_dict = {}
+		target_dir_path = self.dir_obj.full_path
+		for f in self.dir_obj.files:
+			basename = os.path.basename(f.full_path)
+			if basename != target_dir_path:
+				# self.subdir_path_list.add(basename)
+				if basename not in self.subdir_path_dict.keys():
+					self.subdir_path_dict[basename] = []
+					self._logger.debug(f"get_dict_of_subdirs: created empty dict item for subdir {basename}")
+				self.subdir_path_dict[basename].append(f)
+				self._logger.debug(f"get_dict_of_subdirs: added file {f.full_path} to subdir {basename}")
+		
+		self._logger.info(f"get_dict_of_subdirs: got subdirs: {self.subdir_path_dict.keys()}, total: {len(self.subdir_path_dict.keys())}")	
+		return self.subdir_path_dict
+	
+	
+	def create_subdirs(self):
+		self._logger.debug(f"create_subdirs: will create subdirs for dict keys: {self.subdir_path_dict.keys()}")
+		for subdir_path, subdir_files in self.subdir_path_dict.items():
+			self._logger.debug(f"create_subdirs: creating objects for subdir {subdir_path}")
+			now = datetime.datetime.now()
+			new_dir = self._dir_manager.create(subdir_path, is_etalon = self.dir_obj.is_etalon, date_added = now, date_checked = self.dir_obj.date_checked)
+			new_dir_files = []
+			for f in subdir_files:
+				# copy file into new object
+				new_file = self._file_manager.create(f.full_path, is_etalon = f.is_etalon, date_added = now, date_checked = f.date_checked)
+				new_dir_files.append(new_file)
+				pass
+			new_dir.files = new_dir_files
+			self.subdirs.append(new_dir)
+			self.progress += 1 / len(self.subdir_path_dict.keys())
+			pass
+		pass
+	
+	
+	def save(self):
+		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
+		self._dir_manager.db_commit()
+		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
+		pass
+	
+	
+	@property
+	def preview_html(self):
+		result = f"Will split dir {self.dir_obj.full_path} into dirs:" + "\n"
+		t_dict = self.get_dict_of_subdirs()
+		for k, v in t_dict:
+			result += "k\n"
+		result += "\n\n"
+		return result.replace("\n", "<br>\n")
+		
+	
+	def run(self):
+		self._logger.debug(f"run: starting for dir {self.dir_obj.full_path}")
+		self.mark_start()
+		self.get_dict_of_subdirs()
+		self.create_subdirs()
+		self.save()
+		
+		self.mark_end()
+		self._logger.debug("run: complete")
+		pass
+
+

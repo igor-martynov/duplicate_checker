@@ -27,10 +27,13 @@ class Directory(DeclarativeBase):
 	is_etalon = Column(Boolean, nullable = False)
 	date_added = Column(DateTime, nullable = False)
 	date_checked = Column(DateTime, nullable = False)
-	# name = Column(String, nullable = False)
+	name = Column(String, nullable = False)
 	full_path = Column(String, nullable = False)
 	comment = Column(String, nullable = True)
 	deleted = Column(Boolean, nullable = False, default = False)
+	enabled = Column(Boolean, nullable = False, default = True)
+	drive = Column(String, nullable = True)
+	host = Column(String, nullable = True)
 	files = relationship("File", back_populates = "dir")
 	
 
@@ -48,6 +51,7 @@ class File(DeclarativeBase):
 	checksum = Column(String, nullable = True)
 	comment = Column(String, nullable = True)
 	deleted = Column(Boolean, nullable = False, default = False)
+	enabled = Column(Boolean, nullable = False, default = True)
 	dir_id = Column(Integer, ForeignKey("dirs.id"))
 	dir = relationship("Directory", back_populates = "files")
 	

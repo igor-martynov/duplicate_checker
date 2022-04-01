@@ -19,13 +19,14 @@
 			<br>
 			[<a href="/find-copies/{{ dir.id }}" title="find copies of files in DB">find copies</a>]<br>
 			[<a href="/check-dir/{{ dir.id }}" title="check if dir has actual file checksums">check dir</a>]<br>
-			[<a href="/delete-dir/{{ dir.id }}" title="">delete dir</a>]<br>
+			[<a href="/delete-dir/{{ dir.id }}" title="remove this dir from DB">delete dir</a>]<br>
+			[<a href="/split-dir/{{ dir.id }}" title="split dir into subdirs">split dir</a>]<br>
 			<br>
 			<br>
 			Is etalon: {% if dir.is_etalon %}yes{% else %}no{% endif %}<br>
 			Total files: {{dir.files | length}}<br>
 			Comment: {{ dir.comment }}<br>
-			<br>------ FILES:-------<br>
+			<br><br><br>------ FILES:-------<br>
 			
 			<br>
 			<br>

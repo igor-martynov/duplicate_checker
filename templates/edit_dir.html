@@ -13,17 +13,18 @@
 			{% include 'header.jinja2.html' %}
 			<br>
 			<br>
-			add dirs<br>
+			edit dir<br>
 			<form class="space_between_scroll" action="" method="post">
 				<br>
 				<label for="name">Full path:</label>
-				<input type="text" id="full_path" name="full_path" title="full_path" required value="{{dir.full_path}}"><br>
+				<input type="text" id="full_path" name="full_path" title="full_path" required value="{{ dir.full_path }}"><br>
 				
 				<label for="comment">Comment:</label><br>
 				<textarea name="comment" title="Comment" cols="120" maxlength="1000" rows="20">{{ dir.comment | empty_on_None }}</textarea>
 				<br>
 				<br>
 				<label><input type="checkbox" name="is_etalon" value="is_etalon" {% if dir.is_etalon %}checked{% endif %}>Is etalon </label><br>
+				<label><input type="checkbox" name="is_enabled" value="is_enabled" {% if dir.enabled %}checked{% endif %}>Enabled </label><br>
 				<br>
 				<br>
 				

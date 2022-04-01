@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-03-01
+# 2022-04-01
 
-__version__ = "0.5.8"
+__version__ = "0.6.3"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -161,7 +161,23 @@ class DuplicateChecker(object):
 		except Exception as e:
 			print(f"could not rotate log file {self.LOG_FILE}, will use unrotated file!")
 	
+	
+	def delete_directory(self, _dir):
+		try:
+			date_start = datetime.datetime.now()
+			for f in _dir.files:
+				self.file_manager.delete(f)
+			self.dir_manager.delete(_dir)
+			date_end = datetime.datetime.now()
+			self._logger.info(f"delete_directory: deleted directory {_dir.full_path}, took {(date_end - date_start).total_seconds()}s")
+			return True
+		except Exception as e:
+			self._logger.error(f"delete_directory: got error while deleting directory {_dir.full_path}, error: {e}, traceback: {traceback.format_exc()}")
+			return False
+	
+	
 	def backup_DB(self):
+		"""will backup DB file - just copy it to self.DB_FILENAME with appended postfix"""
 		import shutil
 		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
 		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
@@ -177,8 +193,16 @@ class DuplicateChecker(object):
 		else:
 			self._logger.debug("backup_DB: could not backup DB because task is running.")
 			return False
-		pass
-
+	
+	
+	def execute_sql_query(self, query_text):
+		self._logger.info(f"execute_sql_query: will execute query: {query_text}")
+		try:
+			result = self._session.execute(query_text)
+			return result
+		except Exception as e:
+			self._logger.error(f"execute_sql_query: got error {e}, traceback: {traceback.format_exc()}")
+			return None
 
 
 
@@ -224,6 +248,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		def show_file(file_id):
 			if request.method == "GET":
 				found_file = self.file_manager.get_by_id(file_id)
+				if found_file is None:
+					return render_template("blank_page.html", page_text = f"ERROR file with id {file_id} not found!")
 				return render_template("show_file.html", file = found_file, duplcates = self.comparison_manager.find_file_duplicates(found_file))
 		
 		
@@ -287,20 +313,21 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				return render_template("delete_dir.html", dir = target_dir)
 			if request.method == "POST":
-				date_start = datetime.datetime.now()
-				for f in target_dir.files:
-					self.file_manager.delete(f)
-				self.dir_manager.delete(target_dir)
-				date_end = datetime.datetime.now()
-				self._logger.info(f"delete_directory: deleted directory {target_dir.full_path}, took {(date_end - date_start).total_seconds()}s")
-				return render_template("blank_page.html", page_text = f"deleted successfuly dir with id {dir_id}")
+				result = self.delete_directory(target_dir)
+				if result:
+					return render_template("blank_page.html", page_text = f"deleted successfuly dir with id {dir_id}")
+				else:
+					return render_template("blank_page.html", page_text = f"ERROR got error while deling dir with id {dir_id}")
 		
 		
 		@web_app.route("/show-task/<int:task_id>", methods = ["GET", "POST"])
 		def show_task(task_id):
+			self._logger.debug(f"show_task: will show task {task_id}")
 			try:
 				found_task = self.task_manager.tasks[task_id]
+				self._logger.debug(f"show_task: will use task {found_task}")
 			except Exception as e:
+				self._logger.error(f"show_task: gor error {e}, traceback: {traceback.format_exc()}")
 				return render_template("blank_page.html", text = f"error {e}")
 			return render_template("show_task.html", task = found_task)
 		
@@ -333,7 +360,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = f"ERROR Directory B with id {dir_b_id} does not exist!")
 				# launch comparison
 				self.task_manager.compare_directories(dir_a, dir_b)
-				return render_template("blank_page.html", page_text = "task launched.")
+				return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
 		
 		@web_app.route("/check-dir/<int:dir_id>", methods = ["GET"])
@@ -345,7 +372,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				if not os.path.isdir(target_dir.full_path):
 					return render_template("blank_page.html", page_text = f"Cannot check directory {target_dir.full_path} - it does not exist or is unavailable")
 				self.task_manager.check_dir(target_dir)
-				return render_template("blank_page.html", page_text = f"Task created for dir {target_dir.full_path} check, see tasks")
+				return render_template("blank_page.html", page_text = f"Task CheckDirTask created for dir {target_dir.full_path} check, see tasks " + "- [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
 		
 		# check dir has copies
@@ -354,9 +381,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			target_dir = self.dir_manager.get_by_id(dir_id)
 			if target_dir is None:
 				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
-			# create task
 			self.task_manager.find_copies(target_dir)
-			return render_template("blank_page.html", page_text = "task launched, see tasks page")
+			return render_template("blank_page.html", page_text = "task FindCopiesTask launched, see tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
 		
 		# shutdown app
@@ -399,12 +425,54 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				self._logger.debug("backup_DB: will try to start backup of DB")
 				if self.backup_DB():
-					return render_template("blank_page.html", page_text = "DB backup OK")
+					return render_template("blank_page.html", page_text = "DB backup complete OK")
 				else:
 					return render_template("blank_page.html", page_text = "DB backup FAILED")
-					
-				
+		
+		
+		# TODO: under heavy development
+		@web_app.route("/edit-dir/<int:dir_id>", methods = ["GET", "POST"])
+		def edit_dir(dir_id):
+			target_dir = self.dir_manager.get_by_id(dir_id)
+			if target_dir is None:
+				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
+			if request.method == "GET":
+				return render_template("edit_dir.html", dir = target_dir)
+			if request.method == "POST":
+				dir_fullpath = request.form["full_path"]
+				dir_comment = request.form["comment"]
+				is_etalon = True if request.form.get("is_etalon") is not None else False
+				self._logger.debug(f"edit_dir: for dir {target_dir.full_path} got: full_path: {dir_fullpath}, comment: {dir_comment}, is_etalon: {is_etalon} ")
+				target_dir.comment = dir_comment
+				target_dir.is_etalon = is_etalon
+				self.dir_manager.db_commit()
+				self._logger.debug(f"edit_dir: complete for dir {target_dir.full_path}")
+				return render_template("edit_dir.html", dir = target_dir)
+			
+		
+		@web_app.route("/split-dir/<int:dir_id>", methods = ["GET", "POST"])
+		def split_dir(dir_id):
+			target_dir = self.dir_manager.get_by_id(dir_id)
+			if target_dir is None:
+				# return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
+				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
+			if request.method == "GET":
+				self.task_manager.split_dir(target_dir)
+				return render_template("blank_page.html", page_text = "task SplitDirTask launched, see tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
+			# if request.method == "POST":
+			# 	pass
+		
+		
+		@web_app.route("/execute-sql-query", methods = ["GET", "POST"])
+		def execute_sql_query():
+			if request.method == "GET":
+				return render_template("execute_sql_query.html")
+			if request.method == "POST":
+				query_text = request.form["query_text"]
+				result = self.execute_sql_query(query_text)
+				return render_template("execute_sql_query.html", result = str(result))
 			pass
+		
 		
 		
 		web_app.jinja_env.filters["empty_on_None"] = empty_on_None
@@ -416,8 +484,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		pass
 		
 		
-
-
 
 	
 if __name__ == "__main__":

@@ -16,7 +16,7 @@
 			[<a href="/start-all-tasks" title="start all tasks successively">start all</a>]<br>
 			<br>
 			<br>
-			{% for t in tasks %} {{ tasks.index(t) }} - {{ t.descr }} - {% if t.running %} running {% else %} {% endif %} - {% if t.complete %} complete {% else %} incomplete {% endif %} - {{ t.state }} - [<a href="/show-task/{{ tasks.index(t) }}" title="show this task">show</a>] [<a href="/start-task/{{ tasks.index(t) }}" title="start this task">start</a>]<br> {% endfor %}<br>
+			{% for t in tasks %}task {{ tasks.index(t) }} - {{ t.descr }} - {% if t.running %} running {% else %} {% endif %} - {% if t.complete %} complete {% else %} incomplete {% endif %} - {{ t.state }} - [<a href="/show-task/{{ tasks.index(t) }}" title="show this task">show</a>] [<a href="/start-task/{{ tasks.index(t) }}" title="start this task">start</a>]<br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

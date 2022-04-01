@@ -78,7 +78,6 @@ class BaseManager(object, metaclass = MetaSingleton):
 		self._logger.info(f"delete: object deleted: {obj}, full_path: {obj.full_path}")
 		
 	
-	
 	def create(self, full_path = ""):
 		raise NotImplemented
 
@@ -122,11 +121,30 @@ class FileManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_file, checksum = "", date_added = None, date_checked = None, is_etalon = False, comment = ""):
-		new_file = File(full_path = path_to_file, checksum = checksum, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
-		self._session.add(new_file)
+	def create(self,
+		path_to_file,
+		checksum = "",
+		date_added = None,
+		date_checked = None,
+		is_etalon = False,
+		comment = "",
+		save = True):
+		new_file = File(full_path = path_to_file,
+			checksum = checksum,
+			date_added = date_added,
+			date_checked = date_checked,
+			is_etalon = is_etalon,
+			comment = comment)
+		if save:
+			self._session.add(new_file)
 		return new_file
-
+	
+	
+	def find_copies(self, _file):
+		res = self._session.query(File).filter(File.checksum == _file.checksum, File.full_path != _file.full_path).all()
+		self._logger.debug(f"find_copies: searched for copies of file {_file.full_path}, found: {len(res)}")
+		return res
+	
 	
 
 class DirManager(BaseManager):
@@ -139,26 +157,27 @@ class DirManager(BaseManager):
 	
 	def get_full_list(self):
 		res = self._session.query(Directory).all()
-		self._logger.debug(f"get_full_list: will return {[d.full_path for d in res]}")
+		# self._logger.debug(f"get_full_list: will return {[d.full_path for d in res]}")
 		return res
 	
 	
 	def get_by_id(self, _id):
 		res = self._session.query(Directory).get(_id)
-		self._logger.debug(f"get_by_id: will return {res}")
+		# self._logger.debug(f"get_by_id: will return {res}")
 		return res
 	
 	
 	def get_by_path(self, _path):
 		res = self._session.query(Directory).filter(Directory.full_path == _path).all()
-		self._logger.debug(f"get_by_path: found dirs: {res} with target path {_path} and query {res}.")
+		# self._logger.debug(f"get_by_path: found dirs: {res} with target path {_path} and query {res}.")
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = ""):
+	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", safe = True):
 		# now = datetime.datetime.now()
 		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
-		self._session.add(new_dir)
+		if save:
+			self._session.add(new_dir)
 		return new_dir
 	
 	
@@ -265,13 +284,19 @@ class TaskManager(BaseManager):
 	
 	
 	def find_copies(self, target_dir):
-		new_task = FindCopiesTask(target_dir, logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager, is_etalon = False)
+		new_task = FindCopiesTask(target_dir, logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
 		self.add_task(new_task)
 		return new_task
 		
 	
 	def check_dir(self, target_dir):
 		new_task = CheckDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		self.add_task(new_task)
+		return new_task
+	
+	
+	def split_dir(self, target_dir):
+		new_task = SplitDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
 		self.add_task(new_task)
 		return new_task
 	

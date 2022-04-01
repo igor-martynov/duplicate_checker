@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Execute SQL query:<br>
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<label for="name">Query text:</label>
+				<input type="text" id="query_text" name="query_text" title="query_text" required value="{{ query_text }}"><br>
+				
+				<input type="submit" value="Execute">
+			</form>
+		<br>
+		<br>
+		{{ result }}
+		</div>
+    
+    </body>
+</html>
