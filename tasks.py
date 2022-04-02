@@ -41,8 +41,12 @@ class BaseTask(object):
 		self.complete = None
 		self.OK = None
 		self.error_message = ""
-		self._progress = 0.0
 		self.__report = ""
+		
+		self._progress = 0.0
+		self._prev_progress = None
+		self._prev_datetime = None
+		self._prev_ETA_S = 0
 		
 		self.save_results = True
 		
@@ -54,7 +58,7 @@ class BaseTask(object):
 		if self.complete and self.OK and self.date_end is not None:
 			return "COMPLETE OK"
 		if not self.complete and self.OK:
-			return f"IN PROGRESS ({(self.progress * 100):.1f}%)"
+			return f"IN PROGRESS ({(self.progress * 100):.1f}%, ETA: {self.ETA_s:.1f}s, ETA: {self.ETA_datetime})"
 		if not self.OK and self.running:
 			return f"IN PROGRESS, FAIL ({(self.progress * 100):.1f}%)"
 		if not self.OK and not self.running:
@@ -64,6 +68,37 @@ class BaseTask(object):
 	@property
 	def progress(self):
 		return self._progress
+	
+	
+	@property
+	def ETA_s(self):
+		"""Estimated Time Arrival in seconds"""
+		if self._prev_progress is None:
+			self._prev_progress = 0.0
+			self._prev_datetime = self.date_start
+		curr_progress = self._progress
+		curr_datetime = datetime.datetime.now()
+		progress_speed = (curr_progress - self._prev_progress) / (curr_datetime - self._prev_datetime).total_seconds() # % in 1 second
+		if progress_speed == 0.0:
+			eta = self._prev_ETA_S
+		else:
+			eta = (1.0 - curr_progress) / progress_speed
+			self._prev_ETA_S = eta
+		self._prev_progress = curr_progress
+		self._prev_datetime = curr_datetime
+		self._logger.debug(f"ETA: current eta: {eta} seconds")	
+		return eta
+	
+	
+	# TODO: 
+	@property
+	def ETA_datetime(self):
+		now = datetime.datetime.now()
+		td = datetime.timedelta(days = 0, seconds = self.ETA_s)
+		print(td)
+		res = now + td
+		self._logger.debug(f"ETA_datetime: will return {res} (now is {now})")
+		return res
 	
 	
 	@property
