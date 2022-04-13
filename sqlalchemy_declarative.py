@@ -36,6 +36,11 @@ class Directory(DeclarativeBase):
 	host = Column(String, nullable = True)
 	files = relationship("File", back_populates = "dir")
 	
+	
+	@property
+	def url(self):
+		return f"/show-dir/{self.id}"
+
 
 
 class File(DeclarativeBase):
@@ -59,4 +64,8 @@ class File(DeclarativeBase):
 	@property
 	def name(self):
 		return os.path.basename(self.full_path) if (self.full_path is not None and len(self.full_path) != 0) else None\
+
+	@property
+	def url(self):
+		return f"/show-file/{self.id}"
 

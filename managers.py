@@ -173,7 +173,7 @@ class DirManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", safe = True):
+	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True):
 		# now = datetime.datetime.now()
 		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
 		if save:

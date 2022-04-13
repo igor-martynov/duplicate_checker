@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-04-01
+# 2022-04-07
 
-__version__ = "0.6.3"
+__version__ = "0.6.6"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -159,7 +159,7 @@ class DuplicateChecker(object):
 		try:
 			os.rename(self.LOG_FILE, self.LOG_FILE + OLD_LOG_POSTFIX)
 		except Exception as e:
-			print(f"could not rotate log file {self.LOG_FILE}, will use unrotated file!")
+			print(f"could not rotate log file {self.LOG_FILE}, will overwrite old file!")
 	
 	
 	def delete_directory(self, _dir):
@@ -300,7 +300,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				return render_template("delete_file.html", file = target_file)
 			if request.method == "POST":
-				# delete here
 				self.file_manager.delete(target_file)
 				return render_template("blank_page.html", page_text = f"deleted successfuly file with id {file_id}")
 		
@@ -358,7 +357,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = f"ERROR Directory A with id {dir_a_id} does not exist!")
 				if dir_b is None:
 					return render_template("blank_page.html", page_text = f"ERROR Directory B with id {dir_b_id} does not exist!")
-				# launch comparison
 				self.task_manager.compare_directories(dir_a, dir_b)
 				return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
@@ -422,6 +420,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/backup-db", methods = ["GET"])
 		def backup_DB():
+			"""create copy of DB file with current date as filename suffix"""
 			if request.method == "GET":
 				self._logger.debug("backup_DB: will try to start backup of DB")
 				if self.backup_DB():
@@ -442,9 +441,11 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				dir_fullpath = request.form["full_path"]
 				dir_comment = request.form["comment"]
 				is_etalon = True if request.form.get("is_etalon") is not None else False
-				self._logger.debug(f"edit_dir: for dir {target_dir.full_path} got: full_path: {dir_fullpath}, comment: {dir_comment}, is_etalon: {is_etalon} ")
+				enabled = True if request.form.get("is_enabled") is not None else False
+				self._logger.debug(f"edit_dir: for dir {target_dir.full_path} got: full_path: {dir_fullpath}, comment: {dir_comment}, is_etalon: {is_etalon}, enabled: {enabled} ")
 				target_dir.comment = dir_comment
 				target_dir.is_etalon = is_etalon
+				target_dir.enabled = enabled
 				self.dir_manager.db_commit()
 				self._logger.debug(f"edit_dir: complete for dir {target_dir.full_path}")
 				return render_template("edit_dir.html", dir = target_dir)
@@ -472,6 +473,12 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				result = self.execute_sql_query(query_text)
 				return render_template("execute_sql_query.html", result = str(result))
 			pass
+		
+		
+		# disable all
+		
+		
+		# enable all
 		
 		
 		
