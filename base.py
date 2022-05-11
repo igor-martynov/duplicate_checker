@@ -56,6 +56,9 @@ def get_file_checksum(target_dict, checksum_method = "md5"):
 	return target_dict
 
 
+def get_file_checksum_sha512(target_dict):
+	return get_file_checksum(target_dict, checksum_method = "sha512")
+
 
 def normalize_path_to_dir(path_to_dir):
 	if path_to_dir.startswith(" "):

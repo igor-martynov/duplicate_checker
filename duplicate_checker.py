@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-04-07
+# 2022-05-06
 
-__version__ = "0.6.6"
+__version__ = "0.7.1"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -92,6 +92,8 @@ class DuplicateChecker(object):
 		
 		self._logger.debug("======== duplicate_checker starting, version " + __version__ + " ========")
 		
+		self.checksum_algorithm = self._config.get("main", "checksum_algorithm")
+		self.ignore_duplicates = False
 		
 		if db_file is not None:
 			self.DB_FILE = db_file
@@ -111,7 +113,9 @@ class DuplicateChecker(object):
 		self.file_manager = FileManager(logger = self._logger.getChild("FileManager"))
 		self.dir_manager = DirManager(logger = self._logger.getChild("DirManager"))
 		# self.comparison_manager = ComparisonManager(logger = self._logger.getChild("DirManager")) # not used any more
-		self.task_manager = TaskManager(logger = self._logger.getChild("TaskManager"))
+		self.task_manager = TaskManager(logger = self._logger.getChild("TaskManager"),
+			checksum_algorithm = self.checksum_algorithm,
+			ignore_duplicates = self.ignore_duplicates)
 		
 		self.init_DB_orm()
 		self.init_managers()
@@ -227,7 +231,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		@web_app.route("/", methods = ["GET"])
 		def show_main():
 			if request.method == "GET":
-				return render_template("main_page.html", dirs = [], version = __version__, tasks = [])
+				return render_template("main_page.html", dirs = [], version = __version__, tasks = [], db_file = self.DB_FILE)
 		
 		
 		@web_app.route("/show-all-dirs", methods = ["GET"])

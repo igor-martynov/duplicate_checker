@@ -173,9 +173,9 @@ class DirManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True):
+	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True, name = ""):
 		# now = datetime.datetime.now()
-		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment)
+		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment, name = name)
 		if save:
 			self._session.add(new_dir)
 		return new_dir
@@ -193,7 +193,7 @@ class DirManager(BaseManager):
 class TaskManager(BaseManager):
 	"""docstring for TaskManager"""
 	
-	def __init__(self, session = None, logger = None, file_manager = None, dir_manager = None):
+	def __init__(self, session = None, logger = None, file_manager = None, dir_manager = None, checksum_algorithm = "md5", ignore_duplicates = False):
 		super(TaskManager, self).__init__(session = session, logger = logger)
 		
 		self._file_manager = file_manager
@@ -201,6 +201,8 @@ class TaskManager(BaseManager):
 		
 		self.tasks = []
 		self.autostart = False
+		self.checksum_algorithm = checksum_algorithm
+		self.ignore_duplicates = ignore_duplicates
 		
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 1.5
@@ -265,13 +267,18 @@ class TaskManager(BaseManager):
 		if not os.path.isdir(path_to_dir):
 			self._logger.info(f"add_directory: will not add dir {path_to_dir} as it is not a dir")
 			return None
-		if self._dir_manager.directory_exist(path_to_dir):
+		if self.ignore_duplicates and self._dir_manager.directory_exist(path_to_dir):
 			self._logger.info(f"add_directory: directory {path_to_dir} already exist, not adding it")
 			return None
 			
 		# adding dir
 		self._logger.info(f"add_directory: adding directory {path_to_dir}")
-		new_task = AddDirTask(path_to_dir, logger = self._logger.getChild("AddDirTask_" + str(path_to_dir.split(os.sep)[-1])), file_manager = self._file_manager, dir_manager = self._dir_manager, is_etalon = is_etalon)
+		new_task = AddDirTask(path_to_dir,
+			logger = self._logger.getChild("AddDirTask_" + str(path_to_dir.split(os.sep)[-1])),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			is_etalon = is_etalon,
+			checksum_algorithm = self.checksum_algorithm)
 		self.add_task(new_task)
 		self._logger.debug(f"add_directory: complete for {path_to_dir}")
 		return new_task
@@ -290,7 +297,11 @@ class TaskManager(BaseManager):
 		
 	
 	def check_dir(self, target_dir):
-		new_task = CheckDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = CheckDirTask(target_dir,
+			logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			checksum_algorithm = self.checksum_algorithm)
 		self.add_task(new_task)
 		return new_task
 	

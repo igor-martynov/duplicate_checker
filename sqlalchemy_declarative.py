@@ -25,8 +25,8 @@ class Directory(DeclarativeBase):
 	__tablename__ = "dirs"
 	id = Column(Integer, primary_key = True)
 	is_etalon = Column(Boolean, nullable = False)
-	date_added = Column(DateTime, nullable = False)
-	date_checked = Column(DateTime, nullable = False)
+	date_added = Column(DateTime, nullable = True)
+	date_checked = Column(DateTime, nullable = True)
 	name = Column(String, nullable = False)
 	full_path = Column(String, nullable = False)
 	comment = Column(String, nullable = True)
@@ -49,7 +49,7 @@ class File(DeclarativeBase):
 	__tablename__ = "files"
 	id = Column(Integer, primary_key = True)
 	is_etalon = Column(Boolean, nullable = False)
-	date_added = Column(DateTime, nullable = False)
+	date_added = Column(DateTime, nullable = True)
 	date_checked = Column(DateTime, nullable = True)
 	# name = Column(String(250), nullable = False)
 	full_path = Column(String, nullable = False)
