@@ -238,7 +238,6 @@ class AddDirTask(BaseTask):
 			time.sleep(self._sleep_delay)
 			complete = result._index
 			self._progress = complete / dict_length
-		# print(f"D complete, result: {result}")
 		self._logger.debug(f"wait_till_complete: pool results ready: {result}")
 		return
 	
@@ -248,7 +247,6 @@ class AddDirTask(BaseTask):
 		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path))
 		files = []
 		for r in result:
-			# print(f"R: {r['full_path']}: {r['checksum']}")
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
 		new_dir.files = files
 		self._logger.info(f"create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
@@ -257,7 +255,7 @@ class AddDirTask(BaseTask):
 	
 	
 	def save(self):
-		# save to DB
+		"""save task results to DB"""
 		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
 		self._dir_manager.db_commit()
 		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
@@ -355,7 +353,6 @@ class CompareDirsTask(BaseTask):
 				self._progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fa.full_path} - {fa.checksum}")
 				candidates = self._file_manager.get_by_checksum(fa.checksum)
-				# fa_has_copy = False
 				tmp_c_str = "input_checksum is " + fa.checksum + "; "
 				for c in candidates:
 					tmp_c_str += c.full_path + " - " + c.checksum + ", "
@@ -559,7 +556,6 @@ class FindCopiesTask(BaseTask):
 			self.__report += f.full_path + "\n"
 		self.__report += "\n\n"
 		
-		# self.__report += f"Copies dirs: {self.copies_dict.keys}" + "\n\n"
 		self._logger.debug("result_html: stage 2 complete")
 		self.__report += "Copies:\n"
 		
