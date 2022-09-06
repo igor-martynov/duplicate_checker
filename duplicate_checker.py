@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-05-06
+# 2022-09-06
 
-__version__ = "0.7.1"
+__version__ = "0.7.2"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -89,7 +89,6 @@ class DuplicateChecker(object):
 		formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 		fh.setFormatter(formatter)
 		self._logger.addHandler(fh)
-		
 		self._logger.debug("======== duplicate_checker starting, version " + __version__ + " ========")
 		
 		self.checksum_algorithm = self._config.get("main", "checksum_algorithm")
@@ -167,6 +166,7 @@ class DuplicateChecker(object):
 	
 	
 	def delete_directory(self, _dir):
+		""""""
 		try:
 			date_start = datetime.datetime.now()
 			for f in _dir.files:
@@ -181,7 +181,7 @@ class DuplicateChecker(object):
 	
 	
 	def backup_DB(self):
-		"""will backup DB file - just copy it to self.DB_FILENAME with appended postfix"""
+		"""will backup DB to file - just copy it to self.DB_FILENAME with appended postfix"""
 		import shutil
 		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
 		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
@@ -253,8 +253,11 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				found_file = self.file_manager.get_by_id(file_id)
 				if found_file is None:
+					self._logger.error(f"show_file: file with id {file_id} not found!")
 					return render_template("blank_page.html", page_text = f"ERROR file with id {file_id} not found!")
-				return render_template("show_file.html", file = found_file, duplcates = self.comparison_manager.find_file_duplicates(found_file))
+				duplicates = self.file_manager.get_by_checksum(found_file.checksum)
+				self._logger.debug(f"show file: will show file {found_file.full_path}, duplicates: {duplicates}")
+				return render_template("show_file.html", file = found_file, duplicates = duplicates)
 		
 		
 		@web_app.route("/search-files-by-checksum/<string:file_checksum>", methods = ["GET"])

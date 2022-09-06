@@ -70,7 +70,7 @@ def normalize_path_to_dir(path_to_dir):
 
 
 def empty_on_None(ivar):
-	"""Jinja2 filter for handling empty str"""
+	"""Jinja2 filter, converts None to empty string"""
 	if ivar is None:
 		return ""
 	else:
@@ -78,7 +78,7 @@ def empty_on_None(ivar):
 
 
 def newline_to_br(istr):
-	"""Jinja2 filter, converts None to empty string"""
+	"""Jinja2 filter, converts newline to <br>"""
 	if istr is None:
 		return ""
 	else:
@@ -86,6 +86,7 @@ def newline_to_br(istr):
 
 	
 def run_command(cmdstring):
+	"""run command using subprocess"""
 	import subprocess
 	import shlex
 	
@@ -116,7 +117,7 @@ class MetaSingleton(type):
 
 
 class MetaSingletonByDBFile(type):
-	"""metaclass that creates singletone object. Singletone for each db file. This is usefull due to SQLite multiprocessing and multithreading limitation"""
+	"""metaclass that creates singletone object, one singletone for each db file. This is usefull due to SQLite multiprocessing and multithreading limitation"""
 	
 	
 	_dbfiles = {}
@@ -125,10 +126,7 @@ class MetaSingletonByDBFile(type):
 		print("D will search class for db_file " + kwargs["db_file"])
 		if kwargs["db_file"] not in cls._dbfiles:
 			cls._dbfiles[kwargs["db_file"]] = super(MetaSingletonByDBFile, cls).__call__(*args, **kwargs)
-			# print("D new instance of class created - " + str(cls._dbfiles[kwargs["db_file"]]))
-		# print("D total instances - " + str(cls._dbfiles))
 		return cls._dbfiles[kwargs["db_file"]]
-
 
 
 
@@ -137,12 +135,9 @@ class db_handler_singleton(object, metaclass = MetaSingletonByDBFile):
 	"""DB access class that is singletone"""
 	
 	def __init__(self, db_file = None, log_file = "./duplicate_checker.log", logger = None):
-		# super(db_handler, self).__init__()
 		if hasattr(self, "DB_FILE"):
 			# self._logger.debug("__init__: not initing, using existing object with DB_FILE " + str(self.DB_FILE))
 			return
-		# else:
-		# 	self._logger.debug("__init__: initing new object")
 		
 		if db_file == None :
 			self.DB_FILE = "./duplicate_checker.db"
