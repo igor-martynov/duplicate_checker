@@ -38,7 +38,8 @@ sess.query(User).filter(User.age == 25).\
 
 
 class BaseManager(object, metaclass = MetaSingleton):
-	"""docstring for BaseManager"""
+	"""BaseManager - base class for all managers. """
+	# TODO: all class methods to abstract
 	
 	def __init__(self, session = None, logger = None):
 		super(BaseManager, self).__init__()
@@ -69,10 +70,8 @@ class BaseManager(object, metaclass = MetaSingleton):
 		raise NotImplemented
 	
 	
-	# def delete(self, obj):
-	# 	raise NotImplemented
-	
 	def delete(self, obj):
+		"""fully delete object, including DB commit"""
 		self._session.delete(obj)
 		self._session.commit()
 		self._logger.info(f"delete: object deleted: {obj}, full_path: {obj.full_path}")
@@ -93,7 +92,7 @@ class BaseManager(object, metaclass = MetaSingleton):
 
 
 class FileManager(BaseManager):
-	"""docstring for FileManager
+	"""FileManager
 	
 	responsible for: all file operations: get by id, get by checksum, 
 	"""
@@ -105,19 +104,16 @@ class FileManager(BaseManager):
 	
 	def get_by_id(self, _id):
 		res = self._session.query(File).get(_id)
-		# self._logger.debug(f"get_by_id: will return {res}")
 		return res
 	
 	
 	def get_by_checksum(self, checksum):
 		res = self._session.query(File).filter(File.checksum == checksum).all()
-		# self._logger.debug(f"get_by_checksum: for input {checksum} will return {[f.full_path for f in res]}")
 		return res
 	
 	
 	def get_by_path(self, _path):
 		res = self._session.query(File).filter(File.full_path == _path).all()
-		# self._logger.debug(f"get_by_path: found files: {res} with target path {_path} and query {res}.")
 		return res
 	
 	
@@ -157,19 +153,16 @@ class DirManager(BaseManager):
 	
 	def get_full_list(self):
 		res = self._session.query(Directory).all()
-		# self._logger.debug(f"get_full_list: will return {[d.full_path for d in res]}")
 		return res
 	
 	
 	def get_by_id(self, _id):
 		res = self._session.query(Directory).get(_id)
-		# self._logger.debug(f"get_by_id: will return {res}")
 		return res
 	
 	
 	def get_by_path(self, _path):
 		res = self._session.query(Directory).filter(Directory.full_path == _path).all()
-		# self._logger.debug(f"get_by_path: found dirs: {res} with target path {_path} and query {res}.")
 		return res
 	
 	
@@ -191,7 +184,7 @@ class DirManager(BaseManager):
 
 
 class TaskManager(BaseManager):
-	"""docstring for TaskManager"""
+	"""TaskManager - create and manage tasks"""
 	
 	def __init__(self, session = None, logger = None, file_manager = None, dir_manager = None, checksum_algorithm = "md5", ignore_duplicates = False):
 		super(TaskManager, self).__init__(session = session, logger = logger)
@@ -207,7 +200,6 @@ class TaskManager(BaseManager):
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 1.5
 		self.SLEEP_BETWEEN_CHECKS = 5
-		pass
 	
 	
 	def set_file_manager(self, file_manager):
@@ -260,7 +252,6 @@ class TaskManager(BaseManager):
 		self.__thread = threading.Thread(target = run_successively)
 		self.__thread.start()
 		self._logger.debug("start_all_tasks_successively: tasks run started")
-		pass
 	
 	
 	def add_directory(self, path_to_dir, is_etalon = False):
@@ -270,7 +261,6 @@ class TaskManager(BaseManager):
 		if self.ignore_duplicates and self._dir_manager.directory_exist(path_to_dir):
 			self._logger.info(f"add_directory: directory {path_to_dir} already exist, not adding it")
 			return None
-			
 		# adding dir
 		self._logger.info(f"add_directory: adding directory {path_to_dir}")
 		new_task = AddDirTask(path_to_dir,

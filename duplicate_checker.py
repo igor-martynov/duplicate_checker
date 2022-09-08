@@ -75,12 +75,10 @@ class DuplicateChecker(object):
 		self._config.read(self.CONFIG_FILE)
 		
 		# logging
-		if os.sep not in self._config.get("main", "log_file"):
+		if os.sep not in self._config.get("main", "log_file"): # autodetect absolute or relative path to file
 			self.LOG_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "log_file"))
-			print(f"Using relative path to log file: {self.LOG_FILE}")
 		else:
 			self.LOG_FILE = self._config.get("main", "log_file")
-			print(f"Using absolute path to log file: {self.LOG_FILE}")
 		self.rotate_logs()
 		self._logger = logging.getLogger("duplicate_checker")
 		self._logger.setLevel(logging.DEBUG)
@@ -111,7 +109,6 @@ class DuplicateChecker(object):
 		
 		self.file_manager = FileManager(logger = self._logger.getChild("FileManager"))
 		self.dir_manager = DirManager(logger = self._logger.getChild("DirManager"))
-		# self.comparison_manager = ComparisonManager(logger = self._logger.getChild("DirManager")) # not used any more
 		self.task_manager = TaskManager(logger = self._logger.getChild("TaskManager"),
 			checksum_algorithm = self.checksum_algorithm,
 			ignore_duplicates = self.ignore_duplicates)
