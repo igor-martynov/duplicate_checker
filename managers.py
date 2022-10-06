@@ -167,8 +167,12 @@ class DirManager(BaseManager):
 	
 	
 	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True, name = ""):
-		# now = datetime.datetime.now()
-		new_dir = Directory(full_path = path_to_dir, date_added = date_added, date_checked = date_checked, is_etalon = is_etalon, comment = comment, name = name)
+		new_dir = Directory(full_path = path_to_dir,
+			date_added = date_added,
+			date_checked = date_checked,
+			is_etalon = is_etalon,
+			comment = comment,
+			name = name)
 		if save:
 			self._session.add(new_dir)
 		return new_dir
@@ -300,6 +304,13 @@ class TaskManager(BaseManager):
 		new_task = SplitDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
 		self.add_task(new_task)
 		return new_task
+	
+	
+	def compile_dir(self, path_to_new_dir, input_dir_list):
+		new_task = CompileDirTask(path_to_new_dir, logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),  file_manager = self._file_manager, dir_manager = self._dir_manager, input_dir_list = input_dir_list)
+		self.add_task(new_task)
+		return new_task
+	
 	
 	
 	def task_is_running(self):

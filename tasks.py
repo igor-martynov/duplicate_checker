@@ -87,14 +87,14 @@ class BaseTask(object):
 			self._prev_ETA_S = eta
 		self._prev_progress = curr_progress
 		self._prev_datetime = curr_datetime
-		self._logger.debug(f"ETA: current eta: {eta} seconds")	
+		# self._logger.debug(f"ETA: current eta: {eta} seconds")	
 		return eta
 	
 	
 	@property
 	def ETA_datetime(self):
 		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
-		self._logger.debug(f"ETA_datetime: will return {res}")
+		# self._logger.debug(f"ETA_datetime: will return {res}")
 		return res
 	
 	
@@ -480,6 +480,8 @@ class FindCopiesTask(BaseTask):
 		self.dir = target_dir
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
 		self.copies_dict = {} # key: dir that contains copy, value: 
+		self.no_copies_list = [] # list of files without copies
+		self.__result_html_complete = False
 		pass
 	
 	
@@ -520,13 +522,17 @@ class FindCopiesTask(BaseTask):
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
 			self.mark_failure()
 		self.mark_end()
+		self.pregenerate_report()
 	
 	
 	def get_copies_stats(self):
-		"""just trasnpose file_dict into copies_dict"""
+		"""trasnpose file_dict into copies_dict, and accumulate no_copies_list"""
 		self._logger.debug("get_copies_stats: starting")
 		self.copies_dict = {}
+		self.no_copies_list = []
 		for k, v in self.file_dict.items():
+			if len(v) == 0:
+				self.no_copies_list.append(k)
 			for _copy in v:
 				_copy_dir = _copy.dir
 				if _copy_dir not in self.copies_dict.keys():
@@ -538,45 +544,42 @@ class FindCopiesTask(BaseTask):
 	
 	@property
 	def result_html(self):
+		if self.__result_html_complete:
+			self._logger.debug("result_html: returning pre-generated report")
+			return self.__report.replace("\n", "<br>\n")
+			
 		self._logger.debug("result_html: starting")
 		self.__report = "\n\nStatus: " + str(self.state) + "\n"
 		
 		self.__report += "\nDir: " + self.dir.full_path + "\n"
 		self.__report += f"({len(self.dir.files)} files)" + "\n\n"
-		
 		self.get_copies_stats()
-		
-		no_copies_list = []
-		for k, v in self.file_dict.items():
-			if len(v) == 0:
-				no_copies_list.append(k)
 		self._logger.debug("result_html: stage 1 complete")
-		self.__report += f"files without copies: {len(no_copies_list)}" + "\n"
-		for f in no_copies_list:
+		self.__report += f"files without copies: {len(self.no_copies_list)}" + "\n"
+		for f in self.no_copies_list:
 			self.__report += f.full_path + "\n"
 		self.__report += "\n\n"
 		
 		self._logger.debug("result_html: stage 2 complete")
 		self.__report += "Copies:\n"
 		
-	
 		for d in self.copies_dict.keys():
+			# will use generated sets for readability 
 			set_path_origin = set([f.full_path for f in self.dir.files])
 			set_checksum_origin = set([f.checksum for f in self.dir.files])
 			set_path_copy = set([f.full_path for f in self.copies_dict[d]])
 			set_checksum_copy = set([f.checksum for f in self.copies_dict[d]])
 			set_path_copy_dir = set([f.full_path for f in d.files])
 			set_checksum_copy_dir = set([f.checksum for f in d.files])
-			
-			
+			# then use these sets
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- CONTAINS FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif len(set_checksum_origin.intersection(set_checksum_copy_dir)) != 0 and len(d.files) != len(self.dir.files):
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			else:
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- ERROR! -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 		
@@ -588,6 +591,14 @@ class FindCopiesTask(BaseTask):
 		self.__report += "\n\n" + f"Task took: {self.duration}s"
 		self._logger.debug(f"result_html: report: {self.__report}")
 		return self.__report.replace("\n", "<br>\n")
+	
+	
+	def pregenerate_report(self):
+		self._logger.debug("pregenerate_report: will pre-generate report")
+		t = self.result_html
+		self.__result_html_complete = True
+		
+	
 	
 
 # TODO: testing
@@ -673,12 +684,9 @@ class SplitDirTask(BaseTask):
 	
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
 		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
-		
 		self.dir_obj = target_dir
-		
 		self.subdirs = []
 		self.subdir_path_dict = dict()
-		
 		pass
 	
 	
@@ -719,15 +727,12 @@ class SplitDirTask(BaseTask):
 			new_dir.files = new_dir_files
 			self.subdirs.append(new_dir)
 			self.progress += 1 / len(self.subdir_path_dict.keys())
-			pass
-		pass
 	
 	
 	def save(self):
 		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
 		self._dir_manager.db_commit()
 		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
-		pass
 	
 	
 	@property
@@ -746,9 +751,123 @@ class SplitDirTask(BaseTask):
 		self.get_dict_of_subdirs()
 		self.create_subdirs()
 		self.save()
-		
 		self.mark_end()
 		self._logger.debug("run: complete")
-		pass
 
+
+
+# TODO: under development
+class CompileDirTask(BaseTask):
+	"""docstring for CompileDirTask"""
+	def __init__(self, path_to_new_dir, logger = None, file_manager = None, dir_manager = None, input_dir_list = []):
+		super(CompileDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+		self.path_to_new_dir = path_to_new_dir
+		self.new_dir = None
+		self.input_dirs = input_dir_list
+		# self.all_files_list = [f for idir.files in self.input_dirs for f in files] # TODO: check this
+		self.all_files_list = [file for idir in self.input_dirs for file in idir.files] # TODO: check this
+		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}")
+		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
+		self.unique_files = []
+		self.dry_run = True
+		pass
+	
+	
+	@property
+	def descr(self):
+		return f"CompileDirTask for {self.path_to_new_dir}"
+	
+	
+	def get_unique_file_list(self):
+		unique_checksums = set([f.checksum for f in self.all_files_list])
+		self._logger.info(f"get_unique_file_list: got {len(unique_checksums)} unique_checksums")
+		self._logger.debug(f"get_unique_file_list: unique_checksums are: {unique_checksums}")
+		
+		# algo take 1 - simply by checksums
+		for uc in unique_checksums:
+			for file in self._file_manager.get_by_checksum(uc):
+				if file.dir in self.input_dirs:
+					self.unique_files.append(file)
+					self._logger.debug(f"get_unique_file_list: added file {file.full_path} to target list because its dir {file.dir.full_path} exist in input dir list")
+					break
+		self._logger.debug(f"get_unique_file_list: got list of unique files ({len(self.unique_files)} total): {[file.full_path for file in self.unique_files]}")
+		return self.unique_files
+	
+	
+	def check_all_files_exist(self):
+		for f in self.unique_files:
+			if not self.dry_run and not os.path.isfile(f.full_path):
+				self._logger.error(f"check_all_files_exist: file {f.full_path} is unavailable now, aborting")
+				return False
+		self._logger.info(f"check_all_files_exist: all files are available now")
+		return True
+	
+	
+	def create_copy_commands(self):
+		cmd_list = []
+		CP_COMMAND = "/usr/bin/cp "
+		cmd_args_dict = {}
+		# generating new filenames if necessary
+		resulting_names = cmd_args_dict.keys()
+		for f in self.unique_files:
+			if f.name in resulting_names:
+				# will try and ganerate new name
+				new_name = f.name + f.checksum[-6:]
+				self._logger.info(f"create_copy_commands: will use new name {new_name} for file {f.full_path}")
+				cmd_args_dict[new_name] = f
+			else:
+				cmd_args_dict[f.name] = f
+				self._logger.debug(f"create_copy_commands: will copy {f.full_path} without renaming")
+		# compiling comands
+		for new_filename, orig_file in cmd_args_dict.items():
+			cmd_list.append(f"{CP_COMMAND} {orig_file.full_path} {self.path_to_new_dir}/{new_filename}")
+		self._logger.debug(f"create_copy_commands: generated command list is: {cmd_list}")
+		return cmd_list
+	
+	
+	def run_commands(self, command_list):
+		if self.dry_run:
+			self._logger.debug("run_commands: will not execute commands due to dry_run == True")
+			return True
+		try:
+			run_command(f"mkdir -p {self.path_to_new_dir}")	
+		except Exception as e:
+			self._logger.error(f"run_commands: could not create new dir {self.path_to_new_dir}. Got error: {e}, traceback: {traceback.format_exc()}")
+			return False
+		for cmd in command_list:
+			try:
+				run_command(cmd)
+			except Exception as e:
+				self._logger.error(f"run_commands: got error white executing command: {cmd}. Error: {e}, traceback: {traceback.format_exc()}")
+				self._logger.info("run_commands: stoping command execution due to error.")
+				return False
+		return True
+	
+	
+	def run(self):
+		self.mark_start()
+		# get unique files
+		self.get_unique_file_list()
+		# check all of them if they still exist, otherwise return error
+		if self.check_all_files_exist() is True:
+			self._logger.debug("run: all files exist")
+		else:
+			self._logger.error(f"run: aborting dir compilation due to missing file.")
+			self.mark_failure()
+			self.mark_end()
+			return
+		# create copy commands list
+		commands = self.create_copy_commands()
+		if len(commands) == 0:
+			self._logger.error("run: got zero length command list. Unexpected. returning.")
+			return 
+		# run all commands
+		result = self.run_commands(commands)
+		if result:
+			self._logger.info("run: all commands executed OK")
+		else:
+			self._logger.error("run: got error while executing commands, exiting")
+			return
+		self.mark_end()
+		pass
 

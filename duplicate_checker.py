@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-09-06
+# 2022-10-05
 
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -122,6 +122,7 @@ class DuplicateChecker(object):
 		self._logger.debug("create_DB_schema: starting")
 		File.__table__.create(bind = self._engine, checkfirst = True)
 		Directory.__table__.create(bind = self._engine, checkfirst = True)
+		# TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
 		self._logger.debug("create_DB_schema: complete")
 	
 	
@@ -129,13 +130,7 @@ class DuplicateChecker(object):
 		self._logger.debug(f"init_DB_orm: starting. will use db file {self.DB_FILE}")
 		self._engine = create_engine(f"sqlite:///{self.DB_FILE}", connect_args = {"check_same_thread": False})
 		DeclarativeBase.metadata.bind = self._engine
-		# if not os.path.exists(self.DB_FILE):
-		# 	self._logger.debug("init_DB_orm: DB file does not exist, will try to create it")
-		# 	DeclarativeBase.metadata.create_all(self._engine)
-		# 	self._logger.debug("init_DB_orm: all created, will continue")
-		
 		self.create_DB_schema()
-		
 		from sqlalchemy.orm import sessionmaker
 		DBSession = sessionmaker(autocommit = False, autoflush = False)
 		DBSession.bind = self._engine
@@ -478,6 +473,31 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("execute_sql_query.html", result = str(result))
 			pass
 		
+		
+		@web_app.route("/compile-dir-form", methods = ["GET", "POST"])
+		def compile_dir():
+			if request.method == "GET":
+				return render_template("compile_dir_form.html")
+			if request.method == "POST":
+				path_to_new_dir = request.form["path_to_new_dir"]
+				input_dir_list_str = request.form["dir_list"]
+				input_dir_list = []
+				for dir_id in input_dir_list_str.split(" "):
+					input_dir = self.dir_manager.get_by_id(dir_id)
+					if input_dir is not None:
+						input_dir_list.append(input_dir)
+					else:
+						self._logger.error(f"compile_dir: could not find dir with id {dir_id} while parsing input string from web form. Ignoring this dir id")
+				if len(input_dir_list) == 0:
+					self._logger.error("compile_dir: got empty input dir list, aborting compiling")
+					return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
+				
+				self._logger.debug(f"compile_dir: creating new task for new_dir {path_to_new_dir}, input dir list is: {[idir.full_path for idir in input_dir_list]}")
+				new_task = self.task_manager.compile_dir(path_to_new_dir, input_dir_list)
+				return render_template("blank_page.html", page_text = "New task CompileDirTask created")
+				pass
+			pass
+			
 		
 		# disable all
 		

@@ -69,3 +69,17 @@ class File(DeclarativeBase):
 	def url(self):
 		return f"/show-file/{self.id}"
 
+
+# TODO: under development
+class TaskRecord(DeclarativeBase):
+	"""TaskRecord"""
+	
+	__tablename__ = "tasks"
+	id = Column(Integer, primary_key = True)
+	task_type = Column(String, nullable = True)
+	date_start = Column(DateTime, nullable = True)
+	date_end = Column(DateTime, nullable = True)
+	task_result = Column(String, nullable = True)
+	dir_id = Column(Integer, ForeignKey("dirs.id"))
+	
+

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Compile new dir from files <br>
+			Use dir IDs and path to new dir<br>
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<label for="name">Compile new dir:</label><br>
+				<label for="dir_list">Space separated list of dir ids:</label>
+				<input type="text" id="dir_list" name="dir_list" title="dir_list" required><br>
+				
+				<label for="path_to_new_dir">Path to new dir:</label>
+				<input type="text" id="path_to_new_dir" name="path_to_new_dir" title="path_to_new_dir" required><br>
+				
+				
+				<input type="submit" value="Compile dir">
+			</form>
+		<br>
+		</div>
+    
+    </body>
+</html>
