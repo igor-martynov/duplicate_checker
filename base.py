@@ -17,7 +17,12 @@ import logging
 import logging.handlers
 
 import traceback
-	
+
+import cProfile
+import pstats
+from pstats import SortKey
+
+
 	
 
 def get_file_checksum(target_dict, checksum_method = "md5"):
@@ -85,6 +90,38 @@ def newline_to_br(istr):
 		return istr.replace("\n", "<br>\n")
 
 	
+def secs_to_hrf(secs):
+	"""convert seconds to human-readable form"""
+	S = "s"
+	M = "m"
+	H = "h"
+	D = "d"
+	if secs < 1:
+		return f"{round(secs, 3)}{S}"
+	elif secs < 60:
+		return f"{int(secs)}{S}"
+	elif secs < 3600:
+		minutes = int(secs / 60)
+		seconds = int(secs - minutes * 60)
+		return f"{minutes}{M} {seconds}{S}"
+	elif secs < 3600 * 24:
+		hours = int(secs / 3600)
+		minutes = int((secs - hours * 3600) / 60)
+		seconds = int((secs - 3600 * hours - 60 * minutes))
+		return f"{hours}{H} {minutes}{M} {seconds}{S}"
+	else:
+		days = int(secs / (3600 * 24))
+		remains = secs - days * (3600 * 24)
+		hours = int((secs - days * 3600 * 24) / 3600)
+		minutes = int((secs - days * 3600 * 24 - hours * 3600) / 60)
+		seconds = int(secs - days * 3600 * 24 - 3600 * hours - 60 * minutes)
+		return f"{days}{D} {hours}{H} {minutes}{M} {seconds}{S}"
+	
+
+def datetime_to_str(dt):
+	return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+	
 def run_command(cmdstring):
 	"""run command using subprocess"""
 	import subprocess
@@ -96,6 +133,18 @@ def run_command(cmdstring):
 	run_proc = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 	result = subprocess.Popen.communicate(run_proc)[0].decode("utf-8")
 	return result
+
+
+def cProfile_wrapper(func):
+	def wrapper(*args, **kwargs):
+		FILENAME = f"./profile/{func.__name__}.profile"
+		profiler = cProfile.Profile()
+		result = profiler.runcall(func, *args, **kwargs)
+		profiler.dump_stats(FILENAME)
+		p = pstats.Stats(FILENAME)
+		p.strip_dirs().sort_stats(SortKey.TIME).print_stats()
+		return result
+	return wrapper
 
 
 
@@ -131,159 +180,159 @@ class MetaSingletonByDBFile(type):
 
 
 # TODO: remove this, unused
-class db_handler_singleton(object, metaclass = MetaSingletonByDBFile):
-	"""DB access class that is singletone"""
+# class db_handler_singleton(object, metaclass = MetaSingletonByDBFile):
+# 	"""DB access class that is singletone"""
 	
-	def __init__(self, db_file = None, log_file = "./duplicate_checker.log", logger = None):
-		if hasattr(self, "DB_FILE"):
-			# self._logger.debug("__init__: not initing, using existing object with DB_FILE " + str(self.DB_FILE))
-			return
+# 	def __init__(self, db_file = None, log_file = "./duplicate_checker.log", logger = None):
+# 		if hasattr(self, "DB_FILE"):
+# 			# self._logger.debug("__init__: not initing, using existing object with DB_FILE " + str(self.DB_FILE))
+# 			return
 		
-		if db_file == None :
-			self.DB_FILE = "./duplicate_checker.db"
-		else:
-			self.DB_FILE = db_file
-		print("using DB " + self.DB_FILE)
+# 		if db_file == None :
+# 			self.DB_FILE = "./duplicate_checker.db"
+# 		else:
+# 			self.DB_FILE = db_file
+# 		print("using DB " + self.DB_FILE)
 		
 		
-		self._db_conn = None
-		self._cursor = None
+# 		self._db_conn = None
+# 		self._cursor = None
 		
-		self.lastrowid = None
+# 		self.lastrowid = None
 		
-		self.LOG_QUERIES = False
-		self.LOG_FILE = log_file
-		self._logger = None
-		if self._logger == None:
-			if logger != None:
-				self._logger = logger
-			else:
-				self._logger = logging.getLogger("db_handler")
-				self._logger.setLevel(logging.DEBUG)
-				fh = logging.FileHandler(self.LOG_FILE)
-				fh.setLevel(logging.DEBUG)
-				formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-				fh.setFormatter(formatter)
-				self._logger.addHandler(fh)
-				self._logger.debug("logger inited directly")
+# 		self.LOG_QUERIES = False
+# 		self.LOG_FILE = log_file
+# 		self._logger = None
+# 		if self._logger == None:
+# 			if logger != None:
+# 				self._logger = logger
+# 			else:
+# 				self._logger = logging.getLogger("db_handler")
+# 				self._logger.setLevel(logging.DEBUG)
+# 				fh = logging.FileHandler(self.LOG_FILE)
+# 				fh.setLevel(logging.DEBUG)
+# 				formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# 				fh.setFormatter(formatter)
+# 				self._logger.addHandler(fh)
+# 				self._logger.debug("logger inited directly")
 		
-		self._logger.debug("__init__: inited with db file " + str(self.DB_FILE) + ", self " + str(self))
+# 		self._logger.debug("__init__: inited with db file " + str(self.DB_FILE) + ", self " + str(self))
 		
-		self.init_db()
-		self.create_new_db()
-	
-	
-	def init_db(self):
-		self._db_conn = sqlite3.connect(self.DB_FILE, detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-		# self._logger.debug("init_db: DB inited")
+# 		self.init_db()
+# 		self.create_new_db()
 	
 	
-	def execute_db_query(self, query, *argv):
-		"""thread-safe version, will open db first, and close it afterwards
-		arguments:
-		returns: list"""
+# 	def init_db(self):
+# 		self._db_conn = sqlite3.connect(self.DB_FILE, detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+# 		# self._logger.debug("init_db: DB inited")
+	
+	
+# 	def execute_db_query(self, query, *argv):
+# 		"""thread-safe version, will open db first, and close it afterwards
+# 		arguments:
+# 		returns: list"""
 		
-		start_time = datetime.datetime.now()
-		# if self.LOG_QUERIES:
-		# 	self._logger.debug("execute_db_query: got query " + str(query) + ", args: " + str(argv))
-		db_conn = sqlite3.connect(self.DB_FILE, detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-		with db_conn:
-			if len(argv) > 0:
-				cursor = db_conn.execute(query, argv[0])
-			else:
-				cursor = db_conn.execute(query)
+# 		start_time = datetime.datetime.now()
+# 		# if self.LOG_QUERIES:
+# 		# 	self._logger.debug("execute_db_query: got query " + str(query) + ", args: " + str(argv))
+# 		db_conn = sqlite3.connect(self.DB_FILE, detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+# 		with db_conn:
+# 			if len(argv) > 0:
+# 				cursor = db_conn.execute(query, argv[0])
+# 			else:
+# 				cursor = db_conn.execute(query)
 			
-			result = cursor.fetchall()
-		self.lastrowid = cursor.lastrowid
-		db_conn.commit()
-		db_conn.close()
-		end_time = datetime.datetime.now()
-		if self.LOG_QUERIES:
-			self._logger.debug("execute_db_query: query " + str(query) + ", args: " + str(argv) + " - complete in " + str((end_time - start_time).total_seconds()))
-		return result
+# 			result = cursor.fetchall()
+# 		self.lastrowid = cursor.lastrowid
+# 		db_conn.commit()
+# 		db_conn.close()
+# 		end_time = datetime.datetime.now()
+# 		if self.LOG_QUERIES:
+# 			self._logger.debug("execute_db_query: query " + str(query) + ", args: " + str(argv) + " - complete in " + str((end_time - start_time).total_seconds()))
+# 		return result
 	
 	
-	def deinit_db(self):
-		self._db_conn.commit()
-		self._db_conn.close()
-		self._logger.debug("deinit_db: DB committed and closed")
+# 	def deinit_db(self):
+# 		self._db_conn.commit()
+# 		self._db_conn.close()
+# 		self._logger.debug("deinit_db: DB committed and closed")
 	
 	
-	def execute_db_query_unsafe(self, query, *argv):
-		"""execute db query, should be runned after self.init_db and before self.deinit_db"""
-		# if self.LOG_QUERIES:
-		# 	self._logger.debug("execute_db_query: got query " + str(query) + ", args: " + str(argv))
-		# start_time = datetime.datetime.now()
-		result = None
-		try:
-			if len(argv) > 0:
-				self._cursor = self._db_conn.execute(query, argv[0])
-			else:
-				self._cursor = self._db_conn.execute(query)
+# 	def execute_db_query_unsafe(self, query, *argv):
+# 		"""execute db query, should be runned after self.init_db and before self.deinit_db"""
+# 		# if self.LOG_QUERIES:
+# 		# 	self._logger.debug("execute_db_query: got query " + str(query) + ", args: " + str(argv))
+# 		# start_time = datetime.datetime.now()
+# 		result = None
+# 		try:
+# 			if len(argv) > 0:
+# 				self._cursor = self._db_conn.execute(query, argv[0])
+# 			else:
+# 				self._cursor = self._db_conn.execute(query)
 			
-			result = self._cursor.fetchall()
-			self.lastrowid = self._cursor.lastrowid
-			# self._db_conn.commit()
-			# self._logger.debug("execute_db_query: query complete successfully")
+# 			result = self._cursor.fetchall()
+# 			self.lastrowid = self._cursor.lastrowid
+# 			# self._db_conn.commit()
+# 			# self._logger.debug("execute_db_query: query complete successfully")
 		
-		except Exception as e:
-			self._logger.error("execute_db_query_unsafe: error occured while executing query: " + str(query) + " with args: " + str(argv) + ", error: " + str(e) + ", traceback: " + traceback.format_exc())
-			pass
+# 		except Exception as e:
+# 			self._logger.error("execute_db_query_unsafe: error occured while executing query: " + str(query) + " with args: " + str(argv) + ", error: " + str(e) + ", traceback: " + traceback.format_exc())
+# 			pass
 			
-		# db_conn.close()
-		# end_time = datetime.datetime.now()
-		# if self.LOG_QUERIES:
-		# 	self._logger.debug("execute_db_query: query " + str(query) + ", args: " + str(argv) + " - complete in " + str((end_time - start_time).total_seconds()))
+# 		# db_conn.close()
+# 		# end_time = datetime.datetime.now()
+# 		# if self.LOG_QUERIES:
+# 		# 	self._logger.debug("execute_db_query: query " + str(query) + ", args: " + str(argv) + " - complete in " + str((end_time - start_time).total_seconds()))
 		
-		return result
+# 		return result
 	
 	
-	def commit(self):
-		self._db_conn.commit()
+# 	def commit(self):
+# 		self._db_conn.commit()
 	
 	
-	def create_new_db(self):
-		self._logger.debug("create_new_db: creating new db")
+# 	def create_new_db(self):
+# 		self._logger.debug("create_new_db: creating new db")
 		
-		self.execute_db_query("""CREATE TABLE IF NOT EXISTS files(
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			full_path TEXT,
-			checksum TEXT,
-			is_etalon INTEGER,
-			date_added timestamp,
-			date_checked timestamp,
-			comment TEXT,
-			deleted INTEGER DEFAULT 0,
-			dir_id INTEGER)""")
+# 		self.execute_db_query("""CREATE TABLE IF NOT EXISTS files(
+# 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+# 			full_path TEXT,
+# 			checksum TEXT,
+# 			is_etalon INTEGER,
+# 			date_added timestamp,
+# 			date_checked timestamp,
+# 			comment TEXT,
+# 			deleted INTEGER DEFAULT 0,
+# 			dir_id INTEGER)""")
 		
-		self.execute_db_query("""CREATE TABLE IF NOT EXISTS dirs(
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			full_path TEXT,
-			date_added timestamp,
-			date_checked timestamp,
-			is_etalon INTEGER,
-			comment TEXT,
-			deleted INTEGER DEFAULT 0)""")
+# 		self.execute_db_query("""CREATE TABLE IF NOT EXISTS dirs(
+# 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+# 			full_path TEXT,
+# 			date_added timestamp,
+# 			date_checked timestamp,
+# 			is_etalon INTEGER,
+# 			comment TEXT,
+# 			deleted INTEGER DEFAULT 0)""")
 		
-		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS dir_file(
-		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-		# 	dir_id INTEGER,
-		# 	file_id INTEGER,
-		# 	deleted INTEGER DEFAULT 0)""")
+# 		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS dir_file(
+# 		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+# 		# 	dir_id INTEGER,
+# 		# 	file_id INTEGER,
+# 		# 	deleted INTEGER DEFAULT 0)""")
 		
-		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS file_to_file_link(
-		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-		# 	file_id1 INTEGER,
-		# 	file_id2 INTEGER,
-		# 	deleted INTEGER DEFAULT 0)""")
+# 		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS file_to_file_link(
+# 		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+# 		# 	file_id1 INTEGER,
+# 		# 	file_id2 INTEGER,
+# 		# 	deleted INTEGER DEFAULT 0)""")
 		
-		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS dir_to_dir_link(
-		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-		# 	dir_id1 INTEGER,
-		# 	dir_id2 INTEGER,
-		# 	deleted INTEGER DEFAULT 0)""")
+# 		# self.execute_db_query("""CREATE TABLE IF NOT EXISTS dir_to_dir_link(
+# 		# 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+# 		# 	dir_id1 INTEGER,
+# 		# 	dir_id2 INTEGER,
+# 		# 	deleted INTEGER DEFAULT 0)""")
 		
-		# self.execute_db_query("""""")
+# 		# self.execute_db_query("""""")
 
 
 
@@ -304,7 +353,7 @@ class BaseReport(object):
 		self.DO_PRINT = False
 		self.DELIMETER_LINE = "======================================================================"
 		
-		self.summory = []
+		self.summary = []
 		
 		self.extended = []
 		pass
@@ -325,7 +374,7 @@ class BaseReport(object):
 		# if part == "regular":
 		self.list.append(_str)
 		if part == "summory":
-			self.summory.append(_str)
+			self.summary.append(_str)
 		elif part == "extended":
 			self.extended.append(_str)
 		if self.DO_PRINT:
