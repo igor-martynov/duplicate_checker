@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-10-05
+# 2022-10-13
 
-__version__ = "0.7.3"
+__version__ = "0.7.6"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -31,14 +31,14 @@ import traceback
 
 # Flask
 from flask import Flask, request, Response, render_template, redirect, url_for, session, g
-
+# from werkzeug.middleware.profiler import ProfilerMiddleware
 
 from base import *
 from managers import *
 
 
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, Index, inspect
 
 
 
@@ -73,7 +73,6 @@ class DuplicateChecker(object):
 		self.CONFIG_FILE = config_file
 		self._config = configparser.ConfigParser()
 		self._config.read(self.CONFIG_FILE)
-		
 		# logging
 		if os.sep not in self._config.get("main", "log_file"): # autodetect absolute or relative path to file
 			self.LOG_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "log_file"))
@@ -88,10 +87,10 @@ class DuplicateChecker(object):
 		fh.setFormatter(formatter)
 		self._logger.addHandler(fh)
 		self._logger.debug("======== duplicate_checker starting, version " + __version__ + " ========")
-		
 		self.checksum_algorithm = self._config.get("main", "checksum_algorithm")
 		self.ignore_duplicates = False
-		
+		self.task_autostart = True if self._config.get("main", "task_autostart") == "yes" else False
+		# set DB file as either local or absolute
 		if db_file is not None:
 			self.DB_FILE = db_file
 		else:
@@ -101,21 +100,30 @@ class DuplicateChecker(object):
 			else:
 				self.DB_FILE = self._config.get("main", "db_file")
 				print(f"Using absolute path to DB file: {self.DB_FILE}")
-
-		
 		# sqlalchemy
 		self._engine = None
 		self._session = None
-		
+		# managers
 		self.file_manager = FileManager(logger = self._logger.getChild("FileManager"))
 		self.dir_manager = DirManager(logger = self._logger.getChild("DirManager"))
 		self.task_manager = TaskManager(logger = self._logger.getChild("TaskManager"),
 			checksum_algorithm = self.checksum_algorithm,
-			ignore_duplicates = self.ignore_duplicates)
-		
+			ignore_duplicates = self.ignore_duplicates,
+			task_autostart = self.task_autostart)
+		# sub-init objects
 		self.init_DB_orm()
 		self.init_managers()
 		pass
+	
+	
+	def get_current_schema(self):
+		inspector = inspect(self._engine)
+		schemas = inspector.get_schema_names()
+		for schema in schemas:
+			self._logger.debug(f"get_current_schema: found schema {schema}")
+			for table_name in inspector.get_table_names(schema = schema):
+				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, columns: {inspector.get_columns(table_name, schema = schema)}")
+				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, indexes: {inspector.get_indexes(table_name)}")
 	
 	
 	def create_DB_schema(self):
@@ -123,6 +131,7 @@ class DuplicateChecker(object):
 		File.__table__.create(bind = self._engine, checkfirst = True)
 		Directory.__table__.create(bind = self._engine, checkfirst = True)
 		# TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
+		# Index("ix_checksum", File.__table__.c.checksum) # should be not there
 		self._logger.debug("create_DB_schema: complete")
 	
 	
@@ -131,6 +140,7 @@ class DuplicateChecker(object):
 		self._engine = create_engine(f"sqlite:///{self.DB_FILE}", connect_args = {"check_same_thread": False})
 		DeclarativeBase.metadata.bind = self._engine
 		self.create_DB_schema()
+		self.get_current_schema()
 		from sqlalchemy.orm import sessionmaker
 		DBSession = sessionmaker(autocommit = False, autoflush = False)
 		DBSession.bind = self._engine
@@ -211,14 +221,12 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# web interface
 		self.port = int(self._config.get("web", "port"))
 		self.addr = self._config.get("web", "host")
-		pass
 	
 	
 	def run_web_app(self):
 		web_app = Flask(__name__)
 		web_app.secret_key = self._config.get("web", "secret")
-		
-		
+		# web_app.wsgi_app = ProfilerMiddleware(web_app.wsgi_app)
 		
 		@web_app.route("/", methods = ["GET"])
 		def show_main():
@@ -263,7 +271,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		def add_directory():
 			if request.method == "GET":
 				return render_template("add_dir.html")
-				
 			if request.method == "POST":
 				dirs = str(request.form["path_to_dir"]).splitlines()
 				is_etalon = True if request.form.get("is_etalon") is not None else False
@@ -331,8 +338,11 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		@web_app.route("/show-all-tasks", methods = ["GET", "POST"])
-		def show_tasks():
-			return render_template("show_all_tasks.html", tasks = self.task_manager.tasks)
+		def show_all_tasks():
+			return render_template("show_all_tasks.html",
+				tasks = self.task_manager.tasks,
+				current_task = self.task_manager.current_running_task,
+				is_running = self.task_manager.running)
 		
 		
 		@web_app.route("/show-log", methods = ["GET"])
@@ -402,7 +412,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				try:
 					self.task_manager.start_task(self.task_manager.tasks[task_num])
-					# return render_template("blank_page.html", page_text = f"task {self.task_manager.tasks[task_num]} started")
 					return redirect("/show-all-tasks")
 				except Exception as e:
 					self._logger.error(f"start_task: got error {e} while strting task num {task_num}. traceback: {traceback.format_exc()}")
@@ -454,13 +463,10 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		def split_dir(dir_id):
 			target_dir = self.dir_manager.get_by_id(dir_id)
 			if target_dir is None:
-				# return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
 				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
 			if request.method == "GET":
 				self.task_manager.split_dir(target_dir)
 				return render_template("blank_page.html", page_text = "task SplitDirTask launched, see tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
-			# if request.method == "POST":
-			# 	pass
 		
 		
 		@web_app.route("/execute-sql-query", methods = ["GET", "POST"])
@@ -471,7 +477,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				query_text = request.form["query_text"]
 				result = self.execute_sql_query(query_text)
 				return render_template("execute_sql_query.html", result = str(result))
-			pass
 		
 		
 		@web_app.route("/compile-dir-form", methods = ["GET", "POST"])
@@ -491,12 +496,18 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				if len(input_dir_list) == 0:
 					self._logger.error("compile_dir: got empty input dir list, aborting compiling")
 					return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
-				
 				self._logger.debug(f"compile_dir: creating new task for new_dir {path_to_new_dir}, input dir list is: {[idir.full_path for idir in input_dir_list]}")
 				new_task = self.task_manager.compile_dir(path_to_new_dir, input_dir_list)
 				return render_template("blank_page.html", page_text = "New task CompileDirTask created")
-				pass
-			pass
+		
+		
+		@web_app.route("/save-task/<int:task_id>", methods = ["GET", "POST"])
+		def save_task(task_id):
+			if request.method == "GET":
+				self.task_manager.save_task_result(self.task_manager.tasks[task_id])
+				return render_template("blank_page.html", page_text = f"task number {task_id} saved to file.")
+		
+		
 			
 		
 		# disable all
@@ -508,10 +519,10 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		web_app.jinja_env.filters["empty_on_None"] = empty_on_None
 		web_app.jinja_env.filters["newline_to_br"] = newline_to_br
+		web_app.jinja_env.filters["secs_to_hrf"] = secs_to_hrf
 		
 		print("starting web interface...\n")
 		web_app.run(host = self.addr, port = self.port, use_reloader = False)
-		# print("\n\nPlease open http://127.0.0.1:" + str(self.port) + " or http://SERVER_IP:" + str(self.port) + " in ypur browser.")
 		pass
 		
 		

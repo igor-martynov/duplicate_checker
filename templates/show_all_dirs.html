@@ -17,7 +17,7 @@
 			<br>
 			<br>
 			<br>
-			{% for d in dirs %} <a href="/show-dir/{{d.id}}" title="show">{{d.full_path}}</a> [<a href="/delete-dir/{{d.id}}" title="delete">delete</a>] [<a href="/check-dir/{{d.id}}" title="check">check</a>] [<a href="/find-copies/{{ d.id }}" title="find copies of files in DB">find copies</a>] [<a href="/edit-dir/{{d.id}}" title="edit">edit</a>] <br><br> {% endfor %}<br>
+			{% for d in dirs %} <a href="/show-dir/{{d.id}}" title="show">{{ d.id }} - {{ d.full_path }}</a> [<a href="/delete-dir/{{d.id}}" title="delete">delete</a>] [<a href="/check-dir/{{d.id}}" title="check">check</a>] [<a href="/find-copies/{{ d.id }}" title="find copies of files in DB">find copies</a>] [<a href="/edit-dir/{{d.id}}" title="edit">edit</a>] <br><br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

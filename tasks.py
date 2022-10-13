@@ -25,6 +25,19 @@ from base import *
 
 
 
+# def cProfile_wrapper(func):
+# 	def wrapper(*args, **kwargs):
+# 		FILENAME = f"./profile/{func.__name__}.profile"
+# 		profiler = cProfile.Profile()
+# 		result = profiler.runcall(func, *args, **kwargs)
+# 		profiler.dump_stats(FILENAME)
+# 		p = pstats.Stats(FILENAME)
+# 		p.strip_dirs().sort_stats(SortKey.TIME).print_stats()
+# 		return result
+# 	return wrapper
+
+
+
 class BaseTask(object):
 	"""BaseTask"""
 	
@@ -49,6 +62,7 @@ class BaseTask(object):
 		self._prev_ETA_S = 0
 		
 		self.save_results = True
+		self.__result_html_complete = False
 		
 		
 	@property		
@@ -58,12 +72,12 @@ class BaseTask(object):
 		if self.complete and self.OK and self.date_end is not None and not self.running:
 			return "COMPLETE OK"
 		if not self.complete and self.OK:
-			return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {self.ETA_s:.1f}s, ETA: {self.ETA_datetime})"
+			return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {secs_to_hrf(self.ETA_s)}, ETA: {datetime_to_str(self.ETA_datetime)})"
 		if not self.OK and self.running:
-			return f"IN PROGRESS, FAIL ({(self.progress * 100):.1f}%)"
+			return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
 		if (not self.OK and not self.running) or (not self.OK and not self.complete):
 			return "COMPLETE FAILED"
-		return f"UNKNOWN (OK {self.OK}, running {self.running}, complete {self.complete}, start {self.date_start}, end {self.date_end})"
+		return f"UNKNOWN (OK {self.OK}, running {self.running}, complete {self.complete}, start {datetime_to_str(self.date_start)}, end {datetime_to_str(self.date_end)})"
 	
 	
 	@property
@@ -87,14 +101,14 @@ class BaseTask(object):
 			self._prev_ETA_S = eta
 		self._prev_progress = curr_progress
 		self._prev_datetime = curr_datetime
-		# self._logger.debug(f"ETA: current eta: {eta} seconds")	
+		self._logger.debug(f"ETA: current eta: {eta} seconds")	
 		return eta
 	
 	
 	@property
 	def ETA_datetime(self):
 		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
-		# self._logger.debug(f"ETA_datetime: will return {res}")
+		self._logger.debug(f"ETA_datetime: will return {res}")
 		return res
 	
 	
@@ -113,7 +127,6 @@ class BaseTask(object):
 		self._logger.debug("start: starting task")
 		self.__thread = threading.Thread(target = self.run)
 		self.__thread.start()
-		# self.run()
 		self._logger.debug("start: task started in thread")
 	
 	
@@ -168,8 +181,18 @@ class BaseTask(object):
 	@property
 	def duration(self):
 		return (self.date_end - self.date_start).total_seconds() if self.date_start is not None and self.date_end is not None else 0.0
-	
 
+
+	def pregenerate_report(self):
+		if self.running:
+			self._logger.debug("pregenerate_report: should pre-generate report, but cannot - task is still running. passing by.")
+			return False
+		_ = self.result_html
+		self.__result_html_complete = True
+		self._logger.debug("pregenerate_report: report pre-generated")
+		return True
+
+	
 # TODO: OK
 class AddDirTask(BaseTask):
 	"""Task to add new dir.
@@ -338,7 +361,7 @@ class CompareDirsTask(BaseTask):
 	def b_is_subset_of_a(self):
 		return True if len(self.files_b_on_a) == len(self.dir_b.files) else False
 		
-	
+	@cProfile_wrapper
 	def run(self):
 		self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
 		self.mark_start()
@@ -352,7 +375,7 @@ class CompareDirsTask(BaseTask):
 			for fa in self.dir_a.files:
 				self._progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fa.full_path} - {fa.checksum}")
-				candidates = self._file_manager.get_by_checksum(fa.checksum)
+				candidates = self._file_manager.get_by_checksum(fa.checksum, idir = self.dir_b)
 				tmp_c_str = "input_checksum is " + fa.checksum + "; "
 				for c in candidates:
 					tmp_c_str += c.full_path + " - " + c.checksum + ", "
@@ -371,7 +394,7 @@ class CompareDirsTask(BaseTask):
 			for fb in self.dir_b.files:
 				self._progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fb.full_path} - {fb.checksum}")
-				candidates = self._file_manager.get_by_checksum(fb.checksum)
+				candidates = self._file_manager.get_by_checksum(fb.checksum, idir = self.dir_a)
 				# fb_has_copy = False
 				tmp_c_str = "input_checksum is " + fb.checksum + "; "
 				for c in candidates:
@@ -500,22 +523,24 @@ class FindCopiesTask(BaseTask):
 		
 		total_files = len(self.dir.files)
 		try:
+			progress_increase = 1 / total_files
 			for f in self.dir.files:
-				self._logger.debug(f"run: checking file {f.full_path}...")
+				self._logger.debug(f"run: checking file {f.full_path}... progress: {self._progress}")
 				candidates = self._file_manager.find_copies(f)
-				self._progress = self.dir.files.index(f) / total_files
+				# self._progress = self.dir.files.index(f) / total_files
+				self._progress += progress_increase
 				for c in candidates:
 					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
-						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}")
+						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self._progress}")
 						continue
 					if f.name == c.name:
 						# self._logger.debug(f"run: adding copy {c.id} - {c.full_path} for target file {f.full_path}")
 						self.file_dict[f].append(c)
 					else:
-						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add.")
+						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add. progress: {self._progress}")
 			
 			self._logger.debug("run: file checking complete, file_dict filled.")
-			self._logger.debug(f"run: file_dict: {self.file_dict}")
+			# self._logger.debug(f"run: file_dict: {self.file_dict}")
 			self._logger.debug("run: run complete.")
 			self.mark_OK()
 		except Exception as e:
@@ -547,10 +572,8 @@ class FindCopiesTask(BaseTask):
 		if self.__result_html_complete:
 			self._logger.debug("result_html: returning pre-generated report")
 			return self.__report.replace("\n", "<br>\n")
-			
 		self._logger.debug("result_html: starting")
 		self.__report = "\n\nStatus: " + str(self.state) + "\n"
-		
 		self.__report += "\nDir: " + self.dir.full_path + "\n"
 		self.__report += f"({len(self.dir.files)} files)" + "\n\n"
 		self.get_copies_stats()
@@ -591,14 +614,7 @@ class FindCopiesTask(BaseTask):
 		self.__report += "\n\n" + f"Task took: {self.duration}s"
 		self._logger.debug(f"result_html: report: {self.__report}")
 		return self.__report.replace("\n", "<br>\n")
-	
-	
-	def pregenerate_report(self):
-		self._logger.debug("pregenerate_report: will pre-generate report")
-		t = self.result_html
-		self.__result_html_complete = True
 		
-	
 	
 
 # TODO: testing
@@ -652,6 +668,7 @@ class CheckDirTask(BaseTask):
 			self._logger.error(f"got error while running: {e}, traceback: {traceback.format_exc()}")
 			self.mark_failure()
 		self.mark_end()
+		self.pregenerate_report()
 	
 	
 	@property
@@ -680,7 +697,7 @@ class CheckDirTask(BaseTask):
 
 # TODO: under development
 class SplitDirTask(BaseTask):
-	"""docstring for SplitDirTask"""
+	"""Task to split dir into individual subdirs and add them to the DB"""
 	
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
 		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
@@ -752,6 +769,7 @@ class SplitDirTask(BaseTask):
 		self.create_subdirs()
 		self.save()
 		self.mark_end()
+		self.pregenerate_report()
 		self._logger.debug("run: complete")
 
 
@@ -769,7 +787,8 @@ class CompileDirTask(BaseTask):
 		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}")
 		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
 		self.unique_files = []
-		self.dry_run = True
+		self.dry_run = False
+		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p" 
 		pass
 	
 	
@@ -805,7 +824,7 @@ class CompileDirTask(BaseTask):
 	
 	def create_copy_commands(self):
 		cmd_list = []
-		CP_COMMAND = "/usr/bin/cp "
+		
 		cmd_args_dict = {}
 		# generating new filenames if necessary
 		resulting_names = cmd_args_dict.keys()
@@ -820,7 +839,7 @@ class CompileDirTask(BaseTask):
 				self._logger.debug(f"create_copy_commands: will copy {f.full_path} without renaming")
 		# compiling comands
 		for new_filename, orig_file in cmd_args_dict.items():
-			cmd_list.append(f"{CP_COMMAND} {orig_file.full_path} {self.path_to_new_dir}/{new_filename}")
+			cmd_list.append(f"{self.CP_COMMAND} {orig_file.full_path} {self.path_to_new_dir}/{new_filename}")
 		self._logger.debug(f"create_copy_commands: generated command list is: {cmd_list}")
 		return cmd_list
 	
@@ -830,13 +849,17 @@ class CompileDirTask(BaseTask):
 			self._logger.debug("run_commands: will not execute commands due to dry_run == True")
 			return True
 		try:
-			run_command(f"mkdir -p {self.path_to_new_dir}")	
+			run_command(f"{self.CP_COMMAND} -p {self.path_to_new_dir}")
+			self._logger.debug(f"run_commands: created new dir {self.path_to_new_dir}")
 		except Exception as e:
 			self._logger.error(f"run_commands: could not create new dir {self.path_to_new_dir}. Got error: {e}, traceback: {traceback.format_exc()}")
 			return False
+		progress_increment = 1 / len(command_list)
 		for cmd in command_list:
 			try:
 				run_command(cmd)
+				self._logger.debug(f"run_commands: executing command: {cmd}")
+				self._progress += progress_increment
 			except Exception as e:
 				self._logger.error(f"run_commands: got error white executing command: {cmd}. Error: {e}, traceback: {traceback.format_exc()}")
 				self._logger.info("run_commands: stoping command execution due to error.")
@@ -869,5 +892,6 @@ class CompileDirTask(BaseTask):
 			self._logger.error("run: got error while executing commands, exiting")
 			return
 		self.mark_end()
+		self.pregenerate_report()
 		pass
 

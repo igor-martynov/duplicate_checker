@@ -28,9 +28,6 @@ from tasks import *
 
 """
 
-sess.query(User).filter(User.age == 25).\
-    delete(synchronize_session=False)
-    
     
 
 """
@@ -107,8 +104,11 @@ class FileManager(BaseManager):
 		return res
 	
 	
-	def get_by_checksum(self, checksum):
-		res = self._session.query(File).filter(File.checksum == checksum).all()
+	def get_by_checksum(self, checksum, idir = None):
+		if idir is None:
+			res = self._session.query(File).filter(File.checksum == checksum).all()
+		else:
+			res = self._session.query(File).filter(File.checksum == checksum, File.dir_id == idir.id).all()
 		return res
 	
 	
@@ -190,20 +190,37 @@ class DirManager(BaseManager):
 class TaskManager(BaseManager):
 	"""TaskManager - create and manage tasks"""
 	
-	def __init__(self, session = None, logger = None, file_manager = None, dir_manager = None, checksum_algorithm = "md5", ignore_duplicates = False):
+	def __init__(self, session = None,
+		logger = None,
+		file_manager = None,
+		dir_manager = None,
+		checksum_algorithm = "md5",
+		ignore_duplicates = False,
+		task_autostart = False):
 		super(TaskManager, self).__init__(session = session, logger = logger)
 		
 		self._file_manager = file_manager
 		self._dir_manager = dir_manager
 		
-		self.tasks = []
-		self.autostart = False
 		self.checksum_algorithm = checksum_algorithm
 		self.ignore_duplicates = ignore_duplicates
+		
+		self.tasks = []
+		self.autostart = task_autostart
+		# self.current_running_task = None
+		self.running = False
 		
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 1.5
 		self.SLEEP_BETWEEN_CHECKS = 5
+	
+	
+	@property
+	def current_running_task(self):
+		for task in self.tasks:
+			if task.running:
+				return task
+		return None
 	
 	
 	def set_file_manager(self, file_manager):
@@ -237,7 +254,8 @@ class TaskManager(BaseManager):
 	def start_all_tasks_successively(self):
 		
 		def run_successively():
-			self._logger.debug(f"run_successively: starting with tasks {self.tasks}")	
+			self._logger.debug(f"run_successively: starting with tasks {self.tasks}")
+			self.running = True
 			for t in self.tasks:
 				if t.running is None:
 					self.start_task(t)
@@ -249,7 +267,8 @@ class TaskManager(BaseManager):
 							break
 						else:
 							self._logger.debug(f"run_successively: waiting for task...")
-							pass
+			
+			self.running = False
 			self._logger.debug(f"run_successively: complete for all tasks")
 		
 		
@@ -257,6 +276,16 @@ class TaskManager(BaseManager):
 		self.__thread.start()
 		self._logger.debug("start_all_tasks_successively: tasks run started")
 	
+	
+	def save_task_result(self, task):
+		try:
+			filename = f"./tasks/task_{task.__class__.__name__}_{task.date_start.isoformat().replace(':','')}.log"
+			with open(filename, "w") as f:
+				f.write(task.result_html)
+				self._logger.info(f"save_task_result: result saved as {filename}")
+		except Exception as e:
+			self._logger.error(f"save_task_result: error {e}, traceback: {traceback.format_exc()}")
+		
 	
 	def add_directory(self, path_to_dir, is_etalon = False):
 		if not os.path.isdir(path_to_dir):
