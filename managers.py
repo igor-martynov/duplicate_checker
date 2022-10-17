@@ -235,9 +235,9 @@ class TaskManager(BaseManager):
 		if task is None: return None
 		self.tasks.append(task)
 		self._logger.debug(f"create_task: task added: {task}")
-		if self.autostart:
+		if self.autostart and not self.running:
 			task.start()
-			self._logger.debug(f"add_task: autostarted task {task}")
+			self._logger.debug(f"add_task: autostarted task {task} on addition")
 	
 	
 	def start_task(self, task):
@@ -261,7 +261,7 @@ class TaskManager(BaseManager):
 					self.start_task(t)
 					while True:
 						time.sleep(self.SLEEP_BETWEEN_CHECKS)
-						if t.complete or t.running is False:
+						if t.complete or (t.running is False):
 							time.sleep(self.SLEEP_BETWEEN_TASKS)
 							self._logger.debug(f"run_successively: detected task end of {t}, starting next one")
 							break
