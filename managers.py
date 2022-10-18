@@ -206,9 +206,7 @@ class TaskManager(BaseManager):
 		self.ignore_duplicates = ignore_duplicates
 		
 		self.tasks = []
-		self.autostart = task_autostart
-		# self.current_running_task = None
-		self.running = False
+		self.autostart_enabled = task_autostart
 		
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 1.5
@@ -223,6 +221,11 @@ class TaskManager(BaseManager):
 		return None
 	
 	
+	@property
+	def running(self):
+		return False if self.current_running_task is None else True
+	
+	
 	def set_file_manager(self, file_manager):
 		self._file_manager = file_manager
 	
@@ -235,10 +238,6 @@ class TaskManager(BaseManager):
 		if task is None: return None
 		self.tasks.append(task)
 		self._logger.debug(f"create_task: task added: {task}")
-		if self.autostart and not self.running:
-			task.start()
-			self._logger.debug(f"add_task: autostarted task {task} on addition")
-	
 	
 	def start_task(self, task):
 		if task in self.tasks:
@@ -251,30 +250,33 @@ class TaskManager(BaseManager):
 			self._logger.error(f"start_task: could not find task {task}")
 	
 	
-	def start_all_tasks_successively(self):
-		
-		def run_successively():
-			self._logger.debug(f"run_successively: starting with tasks {self.tasks}")
-			self.running = True
-			for t in self.tasks:
-				if t.running is None:
-					self.start_task(t)
-					while True:
-						time.sleep(self.SLEEP_BETWEEN_CHECKS)
-						if t.complete or (t.running is False):
-							time.sleep(self.SLEEP_BETWEEN_TASKS)
-							self._logger.debug(f"run_successively: detected task end of {t}, starting next one")
-							break
-						else:
-							self._logger.debug(f"run_successively: waiting for task...")
+	def start_autostart_thread(self):
+		def wait_till_task_completes(task):
+			while task.running:
+				time.sleep(self.SLEEP_BETWEEN_CHECKS)
 			
-			self.running = False
-			self._logger.debug(f"run_successively: complete for all tasks")
-		
-		
-		self.__thread = threading.Thread(target = run_successively)
+		def autostart_thread():
+			time.sleep(self.SLEEP_BETWEEN_CHECKS)
+			while self.autostart_enabled is True:
+				for task in self.tasks:
+					if self.autostart_enabled is False:
+						break
+					if task.running or task.pending is False:
+						# ignore task
+						self._logger.debug(f"start_autostart_thread: ignoring task: {task.descr}. its status is: r: {task.running}, p: {task.pending}")
+						pass
+					else:
+						task.start()
+						wait_till_task_completes(task)
+				time.sleep(self.SLEEP_BETWEEN_TASKS)
+				self._logger.debug(f"start_autostart_thread: loop over all tasks complete")
+				pass
+			self._logger.info(f"start_autostart_thread: complete on user request")
+			
+		self.autostart_enabled = True
+		self.__thread = threading.Thread(target = autostart_thread)
 		self.__thread.start()
-		self._logger.debug("start_all_tasks_successively: tasks run started")
+		self._logger.info(f"start_autostart_thread: thread started")
 	
 	
 	def save_task_result(self, task):
@@ -339,7 +341,6 @@ class TaskManager(BaseManager):
 		new_task = CompileDirTask(path_to_new_dir, logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),  file_manager = self._file_manager, dir_manager = self._dir_manager, input_dir_list = input_dir_list)
 		self.add_task(new_task)
 		return new_task
-	
 	
 	
 	def task_is_running(self):

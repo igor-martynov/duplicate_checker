@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-10-13
+# 2022-10-18
 
-__version__ = "0.7.6"
+__version__ = "0.7.8"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -342,7 +342,20 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("show_all_tasks.html",
 				tasks = self.task_manager.tasks,
 				current_task = self.task_manager.current_running_task,
-				is_running = self.task_manager.running)
+				is_running = self.task_manager.running,
+				autostart = self.task_manager.autostart_enabled)
+		
+		
+		# TODO: under construction
+		@web_app.route("/delete-task/<int:task_id>", methods = ["GET", "POST"])
+		def delete_task(task_id):
+			target_task = self.task_manager.tasks[task_id]
+			if request.method == "GET":
+				return render_template("delete_task.html", task = target_task)
+			if request.method == "POST":
+				del self.task_manager[task_id]
+				return render_template("blank_page.html", page_text = f"task {target_task} removed")
+			pass
 		
 		
 		@web_app.route("/show-log", methods = ["GET"])
@@ -423,6 +436,21 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		def start_all_tasks():
 			if request.method == "GET":
 				self.task_manager.start_all_tasks_successively()
+				return redirect("/show-all-tasks")
+		
+		
+		# start autostart thread
+		@web_app.route("/start-autostart", methods = ["GET"])
+		def start_autostart():
+			if request.method == "GET":
+				self.task_manager.start_autostart_thread()
+				return redirect("/show-all-tasks")
+		
+		
+		@web_app.route("/stop-autostart", methods = ["GET"])
+		def stop_autostart():
+			if request.method == "GET":
+				self.task_manager.autostart_enabled = False
 				return redirect("/show-all-tasks")
 		
 		

@@ -25,19 +25,6 @@ from base import *
 
 
 
-# def cProfile_wrapper(func):
-# 	def wrapper(*args, **kwargs):
-# 		FILENAME = f"./profile/{func.__name__}.profile"
-# 		profiler = cProfile.Profile()
-# 		result = profiler.runcall(func, *args, **kwargs)
-# 		profiler.dump_stats(FILENAME)
-# 		p = pstats.Stats(FILENAME)
-# 		p.strip_dirs().sort_stats(SortKey.TIME).print_stats()
-# 		return result
-# 	return wrapper
-
-
-
 class BaseTask(object):
 	"""BaseTask"""
 	
@@ -50,6 +37,7 @@ class BaseTask(object):
 		
 		self.date_start = None
 		self.date_end = None
+		self.pending = True
 		self.running = None
 		self.complete = None
 		self.OK = None
@@ -143,6 +131,7 @@ class BaseTask(object):
 		self.running = True
 		self.complete = False
 		self.OK = True
+		self.pending = False
 		self._progress = 0.0
 	
 	
@@ -824,7 +813,6 @@ class CompileDirTask(BaseTask):
 	
 	def create_copy_commands(self):
 		cmd_list = []
-		
 		cmd_args_dict = {}
 		# generating new filenames if necessary
 		resulting_names = cmd_args_dict.keys()
@@ -869,9 +857,7 @@ class CompileDirTask(BaseTask):
 	
 	def run(self):
 		self.mark_start()
-		# get unique files
 		self.get_unique_file_list()
-		# check all of them if they still exist, otherwise return error
 		if self.check_all_files_exist() is True:
 			self._logger.debug("run: all files exist")
 		else:

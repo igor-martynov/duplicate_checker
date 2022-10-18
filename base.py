@@ -119,6 +119,7 @@ def secs_to_hrf(secs):
 	
 
 def datetime_to_str(dt):
+	"""dumb fixed conversion"""
 	return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 	
