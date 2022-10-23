@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-10-18
+# 2022-10-23
 
-__version__ = "0.7.8"
+__version__ = "0.8.1"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -113,7 +113,6 @@ class DuplicateChecker(object):
 		# sub-init objects
 		self.init_DB_orm()
 		self.init_managers()
-		pass
 	
 	
 	def get_current_schema(self):
@@ -128,11 +127,16 @@ class DuplicateChecker(object):
 	
 	def create_DB_schema(self):
 		self._logger.debug("create_DB_schema: starting")
-		File.__table__.create(bind = self._engine, checkfirst = True)
-		Directory.__table__.create(bind = self._engine, checkfirst = True)
-		# TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
-		# Index("ix_checksum", File.__table__.c.checksum) # should be not there
+		try:
+			File.__table__.create(bind = self._engine, checkfirst = True)
+			Directory.__table__.create(bind = self._engine, checkfirst = True)
+			# TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
+			ind = Index("ix_checksum", File.__table__.c.checksum) # should be not there
+		except Exception as e:
+			self._logger.error(f"create_DB_schema: got error while creating db: {e}, traceback: {traceback.format_exc()}")
+			return False
 		self._logger.debug("create_DB_schema: complete")
+		return True
 	
 	
 	def init_DB_orm(self):
@@ -167,28 +171,13 @@ class DuplicateChecker(object):
 			print(f"could not rotate log file {self.LOG_FILE}, will overwrite old file!")
 	
 	
-	def delete_directory(self, _dir):
-		""""""
-		try:
-			date_start = datetime.datetime.now()
-			for f in _dir.files:
-				self.file_manager.delete(f)
-			self.dir_manager.delete(_dir)
-			date_end = datetime.datetime.now()
-			self._logger.info(f"delete_directory: deleted directory {_dir.full_path}, took {(date_end - date_start).total_seconds()}s")
-			return True
-		except Exception as e:
-			self._logger.error(f"delete_directory: got error while deleting directory {_dir.full_path}, error: {e}, traceback: {traceback.format_exc()}")
-			return False
-	
-	
 	def backup_DB(self):
 		"""will backup DB to file - just copy it to self.DB_FILENAME with appended postfix"""
 		import shutil
 		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
 		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
 		self._logger.debug(f"backup_DB: will backup DB file {self.DB_FILE}")
-		if not self.task_manager.task_is_running():
+		if not self.task_manager.running:
 			try:
 				shutil.copy(self.DB_FILE, DEST_FILENAME)
 				self._logger.info(f"backup_DB: DB backed up to file {DEST_FILENAME}")
@@ -318,11 +307,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				return render_template("delete_dir.html", dir = target_dir)
 			if request.method == "POST":
-				result = self.delete_directory(target_dir)
-				if result:
-					return render_template("blank_page.html", page_text = f"deleted successfuly dir with id {dir_id}")
-				else:
-					return render_template("blank_page.html", page_text = f"ERROR got error while deling dir with id {dir_id}")
+				new_task = self.task_manager.delete_directory(target_dir)
+				return render_template("blank_page.html", page_text = f"deletion task added for id {dir_id}")
 		
 		
 		@web_app.route("/show-task/<int:task_id>", methods = ["GET", "POST"])
@@ -355,7 +341,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "POST":
 				del self.task_manager[task_id]
 				return render_template("blank_page.html", page_text = f"task {target_task} removed")
-			pass
 		
 		
 		@web_app.route("/show-log", methods = ["GET"])
@@ -409,7 +394,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		@web_app.route("/shutdown-app", methods = ["GET", "POST"])
 		def shutdown_app():
 			if request.method == "GET":
-				if self.task_manager.task_is_running():
+				if self.task_manager.running:
 					self._logger.info("shutdown_app: should shutdown, but can not - there is an running task")
 					return render_template("blank_page.html", page_text = "Cannot shutdown, there is running task")
 				else:
@@ -542,6 +527,26 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# enable all
+		
+		
+		# mass delete
+		@web_app.route("/mass-delete-dirs", methods = ["GET", "POST"])
+		def mass_delete_dirs():
+			dir_list = list(self.dir_manager.get_full_list())
+			dir_list.sort(key = lambda _dir: _dir.id)
+			if request.method == "GET":
+				return render_template("mass_delete_dirs_form.html", dirs = dir_list)
+				pass
+			if request.method == "POST":
+				dirs_to_delete = []
+				for d in dir_list:
+					if request.form.get(f"dir_to_delete_{d.id}") is not None:
+						dirs_to_delete.append(d)
+				self._logger.debug(f"mass_delete_dirs: will delete dirs {[d.full_path for d in dirs_to_delete]}")
+				for d in dirs_to_delete:
+					self.task_manager.delete_directory(d)
+				return render_template("blank_page.html", page_text = f"deleted dirs: {[d.id for d in dirs_to_delete]}")
+		
 		
 		
 		

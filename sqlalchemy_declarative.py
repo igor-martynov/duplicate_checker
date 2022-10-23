@@ -40,6 +40,10 @@ class Directory(DeclarativeBase):
 	@property
 	def url(self):
 		return f"/show-dir/{self.id}"
+	
+	@property
+	def url_html_code(self):
+		return f"<a href='/show-dir/{self.id}' title='show dir'>{self.id} - {self.full_path}</a>"
 
 
 
@@ -68,6 +72,12 @@ class File(DeclarativeBase):
 	@property
 	def url(self):
 		return f"/show-file/{self.id}"
+	
+	
+	@property
+	def url_html_code(self):
+		return f"<a href='/show-file/{self.id}' title='show file'>{self.id} - {self.full_path}</a>"
+	
 
 
 # TODO: under development

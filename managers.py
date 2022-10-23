@@ -239,6 +239,7 @@ class TaskManager(BaseManager):
 		self.tasks.append(task)
 		self._logger.debug(f"create_task: task added: {task}")
 	
+	
 	def start_task(self, task):
 		if task in self.tasks:
 			if task.running is None:
@@ -309,6 +310,16 @@ class TaskManager(BaseManager):
 		return new_task
 	
 	
+	def delete_directory(self, target_dir):
+		new_task = DeleteDirTask(target_dir,
+			logger = self._logger.getChild("DeleteDirTask_" + str(target_dir.full_path.split(os.sep)[-1])),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager)
+		self.add_task(new_task)
+		self._logger.debug("delete_directory: complete")
+		return new_task
+	
+	
 	def compare_directories(self, dir_a, dir_b):
 		new_task = CompareDirsTask(dir_a, dir_b, logger = self._logger.getChild(f"CompareDirsTask_{dir_a.id}_{dir_b.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
 		self.add_task(new_task)
@@ -341,13 +352,6 @@ class TaskManager(BaseManager):
 		new_task = CompileDirTask(path_to_new_dir, logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),  file_manager = self._file_manager, dir_manager = self._dir_manager, input_dir_list = input_dir_list)
 		self.add_task(new_task)
 		return new_task
-	
-	
-	def task_is_running(self):
-		"""return True if any of tasks is running"""
-		for t in self.tasks:
-			if t.running:
-				return True
-		return False
+
 	
 	

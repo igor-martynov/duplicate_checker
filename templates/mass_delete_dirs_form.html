@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- ver0.1 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+		
+			<form class="space_between_scroll" action="" method="post">
+				<br>
+				<label for="name">mass delete dirs:</label>
+				
+				<div class="scroll_list scroll_list_height"></div>
+					{% for d in dirs %}
+					<label><input type="checkbox" name="dir_to_delete_{{ d.id }}" value="dir_to_delete_{{ d.id }}">dir {{d.id}} - {{ d.full_path }}</label><br>
+					{% endfor %}
+				</div>
+				<br>
+				<input type="submit" value="Delete dirs">
+			</form>
+		<br>
+		</div>
+    
+    </body>
+</html>

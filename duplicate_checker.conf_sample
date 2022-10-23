@@ -2,6 +2,8 @@
 log_file = duplicate_checker.log
 max_processes = 4
 db_file = duplicate_checker.db
+checksum_algorithm = sha512
+task_autostart = no
 
 
 [web]
