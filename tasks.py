@@ -362,7 +362,7 @@ class CompareDirsTask(BaseTask):
 	def b_is_subset_of_a(self):
 		return True if len(self.files_b_on_a) == len(self.dir_b.files) else False
 		
-	@cProfile_wrapper
+	# @cProfile_wrapper
 	def run(self):
 		self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
 		self.mark_task_start()
@@ -446,7 +446,6 @@ class CompareDirsTask(BaseTask):
 			self.mark_result_failure()
 	
 	
-	
 	# @cProfile_wrapper
 	@property
 	def result_html(self):
@@ -470,16 +469,16 @@ class CompareDirsTask(BaseTask):
 				self.__report += "B is subset of A.\n\n"
 			
 		self.__report += f"Files on both A and B: {len(self.files_on_both)}" + "\n"
-		for f in self.files_on_both:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
+		# for f in self.files_on_both:
+		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		# self.__report += "\n\n"
 		self.__report += f"Files of A that exist in B: {len(self.files_a_on_b)}" + "\n"
-		for f in self.files_a_on_b:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
+		# for f in self.files_a_on_b:
+		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		# self.__report += "\n\n"
 		self.__report += f"Files of B that exist in A: {len(self.files_b_on_a)}" + "\n"
-		for f in self.files_b_on_a:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		# for f in self.files_b_on_a:
+		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
 		self.__report += "\n\n"
 		self.__report += f"Files that exist only in A: {len(self.files_only_on_a)}" + "\n"
 		for f in self.files_only_on_a:
@@ -598,7 +597,7 @@ class FindCopiesTask(BaseTask):
 		self.__report += "Copies:\n"
 		
 		for d in self.copies_dict.keys():
-			# will use generated sets for readability 
+			# will generate sets for readability 
 			set_path_origin = set([f.full_path for f in self.dir.files])
 			set_checksum_origin = set([f.checksum for f in self.dir.files])
 			set_path_copy = set([f.full_path for f in self.copies_dict[d]])
@@ -646,10 +645,12 @@ class CheckDirTask(BaseTask):
 	def init_subtask_add(self):
 		self.subtask_add = AddDirTask(self.dir.full_path, logger = self._logger.getChild("SubTask_AddDirTask_"), file_manager = self._file_manager, dir_manager = self._dir_manager, is_etalon = self.dir.is_etalon, checksum_algorithm = self.checksum_algorithm)
 		self.subtask_add.save_results = False
+		self._logger.debug(f"init_subtask_add: adding subtask AddDirTask, target_dir_path is: {self.dir.full_path}")
 	
 	
 	def init_subtask_compare(self):
 		self.subtask_compare = CompareDirsTask(self.dir, self.subtask_add.dir, logger = self._logger.getChild("SubTask_CompareDirsTask_"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		self._logger.debug(f"init_subtask_compare: adding subtask CompareDirsTask, dir A: {self.dir}, dir B: {self.subtask_add.dir}")
 	
 	
 	def compare_dirs_old_and_new(self):
@@ -657,11 +658,11 @@ class CheckDirTask(BaseTask):
 		self.subtask_compare.run()
 		self._logger.debug("compare_dirs_old_and_new: comparation complete")
 		if self.subtask_compare.result_OK:
-			self._logger.info("compare_dirs_old_and_new: dirs A and B are equal")
+			self._logger.info("compare_dirs_old_and_new: dirs OLD and NEW are equal")
 			self.mark_result_OK()
 			return True
 		else:
-			self._logger.debug("compare_dirs_old_and_new: dirs A and B are NOT equal")
+			self._logger.debug("compare_dirs_old_and_new: dirs OLD and NEW are NOT equal")
 			self.mark_result_failure()
 			return False
 
@@ -671,8 +672,8 @@ class CheckDirTask(BaseTask):
 	
 	
 	def run(self):
+		self._logger.info(f"run: starting, target_dir: {self.dir.full_path}")
 		self.mark_task_start()
-		self._logger.info(f"run: starting parent task, target_dir: {self.dir.full_path}")
 		try:
 			self.init_subtask_add()
 			self._logger.debug(f"run: will get real checksums for dir...")
@@ -696,7 +697,8 @@ class CheckDirTask(BaseTask):
 	
 	@property
 	def result_html(self):
-		result = f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
+		result = "CheckDirTask result:\n"
+		result += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
 		result += f"Actual dir: {self.new_dir.full_path}, {len(self.new_dir.files)} files" + "\n"
 		result += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		result += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
@@ -706,10 +708,10 @@ class CheckDirTask(BaseTask):
 	
 	@property
 	def progress(self):
-		if self.subtask is not None:
-			return (self._progress + self.subtask._progress) / 2
+		if self.subtask_add is not None and self.subtask_compare is not None:
+			return (self.subtask_add._progress + self.subtask_compare._progress) / 2
 		else:
-			return (self._progress) / 2
+			return 0.0
 	
 
 
@@ -722,7 +724,6 @@ class SplitDirTask(BaseTask):
 		self.dir_obj = target_dir
 		self.subdirs = []
 		self.subdir_path_dict = dict()
-		pass
 	
 	
 	@property
@@ -800,7 +801,6 @@ class CompileDirTask(BaseTask):
 		self.path_to_new_dir = path_to_new_dir
 		self.new_dir = None
 		self.input_dirs = input_dir_list
-		# self.all_files_list = [f for idir.files in self.input_dirs for f in files] # TODO: check this
 		self.all_files_list = [file for idir in self.input_dirs for file in idir.files] # TODO: check this
 		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}")
 		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
