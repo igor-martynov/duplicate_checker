@@ -710,6 +710,8 @@ class CheckDirTask(BaseTask):
 	def progress(self):
 		if self.subtask_add is not None and self.subtask_compare is not None:
 			return (self.subtask_add._progress + self.subtask_compare._progress) / 2
+		elif self.subtask_add is not None and self.subtask_compare is None:
+			return self.subtask_add._progress / 2
 		else:
 			return 0.0
 	
