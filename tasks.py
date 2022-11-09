@@ -734,9 +734,10 @@ class SplitDirTask(BaseTask):
 		target_dir_path = self.dir_obj.full_path
 		for f in self.dir_obj.files:
 			dirname = os.path.dirname(f.full_path)
-			print(f"D dirname: {dirname}")
+			if os.path.dirname(dirname) != target_dir_path:
+				dirname = target_dir_path + os.path.split(dirname)[-2]
+				self._logger.debug(f"get_dict_of_subdirs: detected next level of subdirs, using {dirname}")
 			if dirname != target_dir_path:
-				# self.subdir_path_list.add(dirname)
 				if dirname not in self.subdir_path_dict.keys():
 					self.subdir_path_dict[dirname] = []
 					self._logger.debug(f"get_dict_of_subdirs: created empty dict item for subdir {dirname}")
@@ -770,6 +771,7 @@ class SplitDirTask(BaseTask):
 		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
 		self._dir_manager.db_commit()
 		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
+		self.mark_task_OK()
 	
 	
 	@property
@@ -783,12 +785,16 @@ class SplitDirTask(BaseTask):
 		
 	
 	def run(self):
-		self._logger.debug(f"run: starting for dir {self.dir_obj.full_path}")
+		self._logger.debug(f"run: starting split for dir {self.dir_obj.full_path}")
 		self.mark_task_start()
 		self.get_dict_of_subdirs()
 		self.create_subdirs()
 		self.save()
 		self.mark_task_end()
+		if len(self.subdirs) != 0:
+			self.mark_result_OK()
+		else:
+			self.mark_result_failure()
 		self.pregenerate_report()
 		self._logger.debug("run: complete")
 
