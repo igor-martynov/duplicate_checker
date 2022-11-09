@@ -67,7 +67,7 @@ class BaseTask(object):
 			return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
 		if (not self.OK and not self.running) or (not self.OK and not self.complete):
 			return "COMPLETE FAILED"
-		return f"UNKNOWN (OK {self.OK}, running {self.running}, complete {self.complete}, start {datetime_to_str(self.date_start)}, end {datetime_to_str(self.date_end)})"
+		return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
 	
 	
 	@property
@@ -192,7 +192,7 @@ class BaseTask(object):
 		return True
 
 	
-# TODO: OK
+
 class AddDirTask(BaseTask):
 	"""Task to add new dir.
 	
@@ -323,7 +323,7 @@ class AddDirTask(BaseTask):
 			return result_str
 
 
-# TODO: OK
+
 class CompareDirsTask(BaseTask):
 	"""Task to compare two dirs.
 	
@@ -497,7 +497,7 @@ class CompareDirsTask(BaseTask):
 		return self.__report.replace("\n", "<br>\n")
 	
 	
-# TODO: OK
+	
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of files of one dir"""
 	
@@ -625,7 +625,6 @@ class FindCopiesTask(BaseTask):
 		self._logger.debug(f"result_html: report: {self.__report}")
 		return self.__report.replace("\n", "<br>\n")
 		
-	
 
 # TODO: testing
 class CheckDirTask(BaseTask):
@@ -633,13 +632,11 @@ class CheckDirTask(BaseTask):
 	
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, checksum_algorithm = "md5"):
 		super(CheckDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
-		
 		self.dir = target_dir
 		self.new_dir = None
 		self.subtask_add = None
 		self.subtask_compare = None
 		self.checksum_algorithm = checksum_algorithm
-		pass
 		
 	
 	def init_subtask_add(self):
@@ -716,7 +713,6 @@ class CheckDirTask(BaseTask):
 			return 0.0
 	
 
-
 # TODO: under development
 class SplitDirTask(BaseTask):
 	"""Task to split dir into individual subdirs and add them to the DB"""
@@ -737,14 +733,15 @@ class SplitDirTask(BaseTask):
 		self.subdir_path_dict = {}
 		target_dir_path = self.dir_obj.full_path
 		for f in self.dir_obj.files:
-			basename = os.path.basename(f.full_path)
-			if basename != target_dir_path:
-				# self.subdir_path_list.add(basename)
-				if basename not in self.subdir_path_dict.keys():
-					self.subdir_path_dict[basename] = []
-					self._logger.debug(f"get_dict_of_subdirs: created empty dict item for subdir {basename}")
-				self.subdir_path_dict[basename].append(f)
-				self._logger.debug(f"get_dict_of_subdirs: added file {f.full_path} to subdir {basename}")
+			dirname = os.path.dirname(f.full_path)
+			print(f"D dirname: {dirname}")
+			if dirname != target_dir_path:
+				# self.subdir_path_list.add(dirname)
+				if dirname not in self.subdir_path_dict.keys():
+					self.subdir_path_dict[dirname] = []
+					self._logger.debug(f"get_dict_of_subdirs: created empty dict item for subdir {dirname}")
+				self.subdir_path_dict[dirname].append(f)
+				self._logger.debug(f"get_dict_of_subdirs: added file {f.full_path} to subdir {dirname}")
 		
 		self._logger.info(f"get_dict_of_subdirs: got subdirs: {self.subdir_path_dict.keys()}, total: {len(self.subdir_path_dict.keys())}")	
 		return self.subdir_path_dict
@@ -752,6 +749,7 @@ class SplitDirTask(BaseTask):
 	
 	def create_subdirs(self):
 		self._logger.debug(f"create_subdirs: will create subdirs for dict keys: {self.subdir_path_dict.keys()}")
+		progress_increment = 1 / len(self.subdir_path_dict.keys()) if len(self.subdir_path_dict.keys()) != 0 else 0.0
 		for subdir_path, subdir_files in self.subdir_path_dict.items():
 			self._logger.debug(f"create_subdirs: creating objects for subdir {subdir_path}")
 			now = datetime.datetime.now()
@@ -760,11 +758,12 @@ class SplitDirTask(BaseTask):
 			for f in subdir_files:
 				# copy file into new object
 				new_file = self._file_manager.create(f.full_path, is_etalon = f.is_etalon, date_added = now, date_checked = f.date_checked)
+				new_file.checksum = f.checksum
 				new_dir_files.append(new_file)
 				pass
 			new_dir.files = new_dir_files
 			self.subdirs.append(new_dir)
-			self.progress += 1 / len(self.subdir_path_dict.keys())
+			self._progress += progress_increment
 	
 	
 	def save(self):
@@ -792,7 +791,6 @@ class SplitDirTask(BaseTask):
 		self.mark_task_end()
 		self.pregenerate_report()
 		self._logger.debug("run: complete")
-
 
 
 # TODO: under development
@@ -920,7 +918,7 @@ class CompileDirTask(BaseTask):
 
 
 class DeleteDirTask(BaseTask):
-	"""docstring for DeleteDirTask"""
+	"""This task implements dir deletion via tasks mechanism, thus improving data integrity and reducing risks of race conditions"""
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
 		super(DeleteDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
 		self.target_dir = target_dir
@@ -940,7 +938,7 @@ class DeleteDirTask(BaseTask):
 		self._logger.debug(f"run: starting deletion of dir {self.target_dir_id} - {self.target_dir_path}")
 		try:
 			num_files = len(self.target_dir.files)
-			progress_increment = 1 / num_files
+			progress_increment = 1 / num_files if num_files != 0 else 1.0
 			for f in self.target_dir.files:
 				self._file_manager.delete(f)
 				self._progress += progress_increment

@@ -18,7 +18,7 @@
 			<br>
 			<br>
 			<br>
-			{% for t in tasks %}task {{ tasks.index(t) }} - {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/show-task/{{ tasks.index(t) }}" title="show this task">show</a>] [<a href="/save-task/{{ tasks.index(t) }}" title="save task result">save</a>] [<a href="/start-task/{{ tasks.index(t) }}" title="start this task">start</a>]<br> {% endfor %}<br>
+			{% for t in tasks %}task {{ tasks.index(t) }} - {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/show-task/{{ tasks.index(t) }}" title="show this task">show</a>] [<a href="/save-task/{{ tasks.index(t) }}" title="save task result">save</a>] [<a href="/delete-task/{{ tasks.index(t) }}" title="delete this task">delete</a>] [<a href="/start-task/{{ tasks.index(t) }}" title="start this task">start</a>]<br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

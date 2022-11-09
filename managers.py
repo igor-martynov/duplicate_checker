@@ -264,13 +264,13 @@ class TaskManager(BaseManager):
 						break
 					if task.running or task.pending is False:
 						# ignore task
-						self._logger.debug(f"start_autostart_thread: ignoring task: {task.descr}. its status is: r: {task.running}, p: {task.pending}")
+						# self._logger.debug(f"start_autostart_thread: ignoring task: {task.descr}. its status is: r: {task.running}, p: {task.pending}")
 						pass
 					else:
 						task.start()
 						wait_till_task_completes(task)
 				time.sleep(self.SLEEP_BETWEEN_TASKS)
-				self._logger.debug(f"start_autostart_thread: loop over all tasks complete")
+				# self._logger.debug(f"start_autostart_thread: loop over all tasks complete")
 				pass
 			self._logger.info(f"start_autostart_thread: complete on user request")
 			

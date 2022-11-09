@@ -4,6 +4,7 @@
 	<head>
 		<meta charset="utf-8">
 		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+		<script type="text/javascript" src="{{ url_for('static', filename='actions.js') }}"></script>
 	</head>
 	
 	<body> 
@@ -20,10 +21,11 @@
 				
 				<div class="scroll_list scroll_list_height"></div>
 					{% for d in dirs %}
-					<label><input type="checkbox" name="dir_to_delete_{{ d.id }}" value="dir_to_delete_{{ d.id }}">dir {{d.id}} - {{ d.full_path }}</label><br>
+					<label><input type="checkbox" name="dir_to_delete_{{ d.id }}" class="dir_checkbox" value="dir_to_delete_{{ d.id }}">dir {{d.id}} - {{ d.full_path }}</label><br>
 					{% endfor %}
 				</div>
 				<br>
+				<input id="submit_api_js" type="button" name="" value="submit_api_js" onclick="get_selected_dirs()">
 				<input type="submit" value="Delete dirs">
 			</form>
 		<br>

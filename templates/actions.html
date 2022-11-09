@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }}">
+		<script type="text/javascript" src="{{ url_for('static', filename='actions.js') }}"></script>
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			<br>
+			<label for="name">Actions on dirs:</label>
+			<div class="scroll_list scroll_list_height"></div>
+				{% for d in dirs %}
+				<label><input type="checkbox" name="dir_id_{{ d.id }}" class="dir_checkbox" value="dir_id_{{ d.id }}">dir {{d.id}} - {{ d.full_path }}</label><br>
+				{% endfor %}
+			<br>
+			<br>
+			<input type="submit" value="Compare dirs" onclick="compare_dirs();">
+			<input type="submit" value="Delete dirs" onclick="delete_dirs();">
+			<input type="submit" value="Check dirs" onclick="check_dirs();">
+			<input type="submit" value="Find copies" onclick="find_copies();">
+		<br>
+		</div>
+    
+    </body>
+</html>
