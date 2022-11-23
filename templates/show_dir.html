@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ver1.0 -->
+<!-- ver1.1 -->
 <html>
 	<head>
 		<meta charset="utf-8">
@@ -18,10 +18,10 @@
 			Full path: {{dir.full_path}}<br>
 			<br>
 			<br>
-			[<a href="/find-copies/{{ dir.id }}" title="find copies of files in DB">find copies</a>]<br>
-			[<a href="/check-dir/{{ dir.id }}" title="check if dir has actual file checksums">check dir</a>]<br>
-			[<a href="/delete-dir/{{ dir.id }}" title="remove this dir from DB">delete dir</a>]<br>
-			[<a href="/split-dir/{{ dir.id }}" title="split dir into subdirs">split dir</a>]<br>
+			[<a href="/api/find-copies?dir_id={{ dir.id }}" title="find copies of files in DB">find copies</a>]<br>
+			[<a href="/api/check-dirs?dir_id={{ dir.id }}" title="check if dir has actual file checksums">check dir</a>]<br>
+			[<a href="/api/delete-dirs?dir_id={{ dir.id }}" title="remove this dir from DB">delete dir</a>]<br>
+			[<a href="/api/split-dirs?dir_id={{ dir.id }}" title="split dir into subdirs">split dir</a>]<br>
 			<br>
 			<br>
 			Added: {{ dir.date_added }}<br>

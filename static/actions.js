@@ -1,4 +1,6 @@
-// v0.3
+// v0.4
+// author: Igor Martynov
+
 
 function get_selected_dirs(){
 	var all_list = [];
@@ -9,7 +11,6 @@ function get_selected_dirs(){
 			checked_id_list.push(all_list[i].value.replace("dir_id_", ""));
 		}
 	}
-	console.log("checked_id_list", checked_id_list);
 	return checked_id_list;
 }
 
@@ -17,13 +18,29 @@ function get_selected_dirs(){
 function selected_dirs_to_args() {
 	var selected_dirs_list = [];
 	selected_dirs_list = get_selected_dirs();
-	console.log(selected_dirs_list);
 	var arg_str = "";
 	for (var d = 0; d < selected_dirs_list.length; d++) {
-		arg_str = arg_str + "dir_id=" + selected_dirs_list[d] + "&"
+		if (d < (selected_dirs_list.length - 1)) {
+			arg_str = arg_str + "dir_id=" + selected_dirs_list[d] + "&"
+		}
+		else {
+			arg_str = arg_str + "dir_id=" + selected_dirs_list[d]
+		}
 	}
-	console.log(arg_str);
 	return arg_str;
+}
+
+
+function get_selected_files() {
+	var all_list = [];
+	var checked_id_list = [];
+	all_list = document.querySelectorAll(".file_checkbox");
+	for (var i = 0; i < all_list.length; i++) {
+		if (all_list[i].checked == true) {
+			checked_id_list.push(all_list[i].value.replace("file_id_", ""));
+		}
+	}
+	return checked_id_list;	
 }
 
 
@@ -37,15 +54,18 @@ function compare_dirs() {
 		var dir_a_id = selected_dirs_list[0];
 		var dir_b_id = selected_dirs_list[1];
 		document.location.href = "/api/compare-dirs?dir_a_id=" + dir_a_id + "&dir_b_id=" + dir_b_id;
-		console.log(dir_a_id);
-		console.log(dir_b_id);
 	}
 }
 
 
 function delete_dirs() {
 	var arg_str = selected_dirs_to_args();
-	document.location.href = "/api/delete-dirs?" + arg_str;
+	if (confirm("Delete selected dirs?")) {
+		document.location.href = "/api/delete-dirs?" + arg_str;
+	}
+	else {
+		document.location.href = "/actions"
+	}
 }
 
 
@@ -60,4 +80,22 @@ function find_copies() {
 	document.location.href = "/api/find-copies?" + arg_str;
 }
 
+function split_dirs() {
+	var arg_str = selected_dirs_to_args();
+	document.location.href = "/api/split-dirs?" + arg_str;
+}
+
+
+function compile_dir() {
+	var arg_str = selected_dirs_to_args();
+	let prompt_dir = prompt("Plese enter path to new dir:");
+	if (prompt_dir != null || prompt_dir != "") {
+		path_to_new_dir_encoded = encodeURIComponent(prompt_dir);
+		console.log("encoded dir path: " + path_to_new_dir_encoded)
+		document.location.href = "/api/compile-dir?" + arg_str + "&new_dir=" + path_to_new_dir_encoded;
+	}
+	else {
+		alert("Incorrect path to dir entered.")
+	}
+}
 

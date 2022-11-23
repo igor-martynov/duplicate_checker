@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-11-09
+# 2022-11-23
 
-__version__ = "0.8.7"
+__version__ = "0.9.0"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -229,6 +229,13 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return dirs_list
 		
 		
+		def get_dir_objects_from_request_compile(request):
+			import urllib.parse
+			dirs_list = get_dir_objects_from_request(request)
+			path_to_new_dir = urllib.parse.unquote(request.args.get("new_dir"))
+			return dirs_list, path_to_new_dir
+		
+		
 		@web_app.route("/", methods = ["GET"])
 		def show_main():
 			if request.method == "GET":
@@ -311,26 +318,12 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("blank_page.html", page_text = f"deleted successfuly file with id {file_id}")
 		
 		
-		@web_app.route("/delete-dir/<int:dir_id>", methods = ["GET", "POST"])
-		def delete_directory(dir_id):
-			target_dir = self.dir_manager.get_by_id(dir_id)
-			if target_dir is None:
-				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found")
-			if request.method == "GET":
-				return render_template("delete_dir.html", dir = target_dir)
-			if request.method == "POST":
-				new_task = self.task_manager.delete_directory(target_dir)
-				return render_template("blank_page.html", page_text = f"deletion task added for id {dir_id}")
-		
-		
 		@web_app.route("/api/delete-dirs", methods = ["GET"])
 		def delete_dirs_api():
 			target_dir_list = get_dir_objects_from_request(request)
 			for dir_obj in target_dir_list:
 				self.task_manager.delete_directory(dir_obj)
 			return render_template("blank_page.html", page_text = f"Added tasks for deleting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
-			pass
-		
 		
 		
 		@web_app.route("/show-task/<int:task_id>", methods = ["GET", "POST"])
@@ -371,25 +364,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = log_text.replace("\n", "<br>\n"))
 		
 		
-		# compare dirs
-		@web_app.route("/compare-dirs-form", methods = ["GET"])
-		def compare_dirs():
-			if request.method == "GET":
-				# return render_template("compare_dirs_form_text_fields.html")
-				return render_template("compare_dirs_form.html", dirs = self.dir_manager.get_full_list())
-			# if request.method == "POST":
-			# 	dir_a_id = request.form["dir_a_id"]
-			# 	dir_b_id = request.form["dir_b_id"]
-			# 	dir_a = self.dir_manager.get_by_id(dir_a_id)
-			# 	dir_b = self.dir_manager.get_by_id(dir_b_id)
-			# 	if dir_a is None:
-			# 		return render_template("blank_page.html", page_text = f"ERROR Directory A with id {dir_a_id} does not exist!")
-			# 	if dir_b is None:
-			# 		return render_template("blank_page.html", page_text = f"ERROR Directory B with id {dir_b_id} does not exist!")
-			# 	self.task_manager.compare_directories(dir_a, dir_b)
-			# 	return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
-		
-		
 		# all actions in one form
 		@web_app.route("/actions", methods = ["GET"])
 		def actions():
@@ -397,7 +371,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("actions.html", dirs = self.dir_manager.get_full_list())
 		
 		
-		# compare dirs API
 		@web_app.route("/api/compare-dirs", methods = ["GET"])
 		def compare_dirs_api():
 			if request.method == "GET":
@@ -413,18 +386,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
 		
-		@web_app.route("/check-dir/<int:dir_id>", methods = ["GET"])
-		def check_dir(dir_id):
-			target_dir = self.dir_manager.get_by_id(dir_id)
-			if target_dir is None:
-				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
-			if request.method == "GET":
-				if not os.path.isdir(target_dir.full_path):
-					return render_template("blank_page.html", page_text = f"Cannot check directory {target_dir.full_path} - it does not exist or is unavailable")
-				self.task_manager.check_dir(target_dir)
-				return render_template("blank_page.html", page_text = f"Task CheckDirTask created for dir {target_dir.full_path} check, see tasks " + "- [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
-		
-		
 		@web_app.route("/api/check-dirs", methods = ["GET"])
 		def check_dirs_api():
 			target_dir_list = get_dir_objects_from_request(request)
@@ -433,22 +394,12 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"Added tasks for checking {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
-		# check dir has copies
-		@web_app.route("/find-copies/<int:dir_id>", methods = ["GET"])
-		def find_copies(dir_id):
-			target_dir = self.dir_manager.get_by_id(dir_id)
-			if target_dir is None:
-				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
-			self.task_manager.find_copies(target_dir)
-			return render_template("blank_page.html", page_text = "task FindCopiesTask launched, see tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
-		
-		
 		@web_app.route("/api/find-copies", methods = ["GET"])
 		def find_copies_api():
 			target_dir_list = get_dir_objects_from_request(request)
 			for dir_obj in target_dir_list:
 				self.task_manager.find_copies(dir_obj)
-			return render_template("blank_page.html", page_text = f"Added tasks for checking {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
+			return render_template("blank_page.html", page_text = f"Added tasks FindCopiesTask for {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
 		# shutdown app
@@ -523,16 +474,14 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				self.dir_manager.db_commit()
 				self._logger.debug(f"edit_dir: complete for dir {target_dir.full_path}")
 				return render_template("edit_dir.html", dir = target_dir)
-			
 		
-		@web_app.route("/split-dir/<int:dir_id>", methods = ["GET", "POST"])
-		def split_dir(dir_id):
-			target_dir = self.dir_manager.get_by_id(dir_id)
-			if target_dir is None:
-				return render_template("blank_page.html", page_text = f"ERROR dir with id {dir_id} not found!")
-			if request.method == "GET":
-				self.task_manager.split_dir(target_dir)
-				return render_template("blank_page.html", page_text = "task SplitDirTask launched, see tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
+		
+		@web_app.route("/api/split-dirs", methods = ["GET"])
+		def split_dir_api():
+			target_dir_list = get_dir_objects_from_request(request)
+			for dir_obj in target_dir_list:
+				self.task_manager.split_dir(dir_obj)
+			return render_template("blank_page.html", page_text = f"Added tasks SplitDirTask for splitting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
 		@web_app.route("/execute-sql-query", methods = ["GET", "POST"])
@@ -545,26 +494,15 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("execute_sql_query.html", result = str(result))
 		
 		
-		@web_app.route("/compile-dir-form", methods = ["GET", "POST"])
-		def compile_dir():
-			if request.method == "GET":
-				return render_template("compile_dir_form.html")
-			if request.method == "POST":
-				path_to_new_dir = request.form["path_to_new_dir"]
-				input_dir_list_str = request.form["dir_list"]
-				input_dir_list = []
-				for dir_id in input_dir_list_str.split(" "):
-					input_dir = self.dir_manager.get_by_id(dir_id)
-					if input_dir is not None:
-						input_dir_list.append(input_dir)
-					else:
-						self._logger.error(f"compile_dir: could not find dir with id {dir_id} while parsing input string from web form. Ignoring this dir id")
-				if len(input_dir_list) == 0:
-					self._logger.error("compile_dir: got empty input dir list, aborting compiling")
-					return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
-				self._logger.debug(f"compile_dir: creating new task for new_dir {path_to_new_dir}, input dir list is: {[idir.full_path for idir in input_dir_list]}")
-				new_task = self.task_manager.compile_dir(path_to_new_dir, input_dir_list)
-				return render_template("blank_page.html", page_text = "New task CompileDirTask created")
+		@web_app.route("/api/compile-dir", methods = ["GET", "POST"])
+		def compile_dir_api():
+			input_dir_list, path_to_new_dir = get_dir_objects_from_request_compile(request)
+			if len(input_dir_list) == 0:
+				self._logger.error("compile_dir_api: got empty input dir list, aborting compiling")
+				return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
+			self._logger.debug(f"compile_dir: creating new task for new_dir {path_to_new_dir}, input dir list is: {[idir.full_path for idir in input_dir_list]}")
+			new_task = self.task_manager.compile_dir(path_to_new_dir, input_dir_list)
+			return render_template("blank_page.html", page_text = f"New task CompileDirTask for new_dir {path_to_new_dir}, input dir list: {[idir.full_path for idir in input_dir_list]} created")
 		
 		
 		@web_app.route("/save-task/<int:task_id>", methods = ["GET", "POST"])
@@ -572,12 +510,16 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if request.method == "GET":
 				self.task_manager.save_task_result(self.task_manager.tasks[task_id])
 				return render_template("blank_page.html", page_text = f"task number {task_id} saved to file.")
+		
+		
+		# API
+		# get_file_by_checksum
+		# get_dir_full_path_by_id
+		# get_file_fp_by_id
+		# get_file_by_id
+		
 			
 		
-		# disable all
-		
-		
-		# enable all
 		
 		
 		

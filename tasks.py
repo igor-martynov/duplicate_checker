@@ -57,6 +57,7 @@ class BaseTask(object):
 		
 	@property		
 	def state(self):
+		"""returns text description of current task state"""
 		if self.date_start is None and not self.running:
 			return "PENDING"
 		if self.complete and self.OK and self.date_end is not None and not self.running:
@@ -172,9 +173,22 @@ class BaseTask(object):
 		return f"Preview of {self.__class__.__name__}<br>"
 	
 	
+	# @property
+	# def result_html(self):
+	# 	return f"status: {self.state}"
+	
+	
 	@property
 	def result_html(self):
-		return f"status: {self.state}"
+		if self.__result_html_complete:
+			self._logger.debug("result_html: returning pre-generated report")
+			return self.__report.replace("\n", "<br>\n")
+		return self.generate_report().replace("\n", "<br>\n")
+	
+	
+	def generate_report(self):
+		self.__report = f"Task: {self.descr}, status: {self.state}"
+		return self.__report
 	
 	
 	@property
@@ -186,7 +200,7 @@ class BaseTask(object):
 		if self.running:
 			self._logger.debug("pregenerate_report: should pre-generate report, but cannot - task is still running. passing by.")
 			return False
-		_ = self.result_html
+		self.generate_report()
 		self.__result_html_complete = True
 		self._logger.debug("pregenerate_report: report pre-generated")
 		return True
@@ -255,7 +269,6 @@ class AddDirTask(BaseTask):
 		dict_length = len(dict_list)
 		complete = result._index
 		while complete != dict_length:
-			# print(f"D waiting for pool, complete: {complete} of {dict_length}...")
 			self._logger.debug(f"wait_till_complete: waiting for pool, complete: {complete} of {dict_length}...")
 			time.sleep(self._sleep_delay)
 			complete = result._index
@@ -342,7 +355,7 @@ class CompareDirsTask(BaseTask):
 		self.files_only_on_b = []
 		self.equal_names_diff_checsums = []
 		
-		self._dirs_equal = None
+		self.dirs_are_equal = None
 		# self._a_is_subset_of_b = None
 		# self._b_is_subset_of_a = None
 		pass
@@ -362,12 +375,11 @@ class CompareDirsTask(BaseTask):
 	def b_is_subset_of_a(self):
 		return True if len(self.files_b_on_a) == len(self.dir_b.files) else False
 		
-	# @cProfile_wrapper
+	
 	def run(self):
 		self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
 		self.mark_task_start()
 		self._logger.debug("run: checking files on both A and B")
-		
 		try:
 			len_dir_a_files = len(self.dir_a.files)
 			len_dir_b_files = len(self.dir_b.files)
@@ -438,28 +450,25 @@ class CompareDirsTask(BaseTask):
 	def check_dirs_equal(self):
 		if len(self.files_on_both) == (len(self.dir_a.files) + len(self.dir_b.files)) and len(self.files_only_on_a) == 0 and len(self.files_only_on_b) == 0:
 			self._logger.info("run: dir A equal dir B")
-			self._dirs_equal = True
+			self.dirs_are_equal = True
 			self.mark_result_OK()
 		else:
 			self._logger.info("run: dir A NOT equal dir B")
-			self._dirs_equal = False
+			self.dirs_are_equal = False
 			self.mark_result_failure()
 	
 	
-	# @cProfile_wrapper
-	@property
-	def result_html(self):
+	def generate_report(self):
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
 			
 		self.__report = ""
-		
 		self.__report += f"Directory comparation status: {self.state}" + ".\n"
 		self.__report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
 		self.__report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
 		self.__report += "\n\n"
-		if self._dirs_equal:
+		if self.dirs_are_equal:
 			self.__report += "DIRS ARE EQUAL.\n\n"
 		else:
 			self.__report += "Dirs are not equal.\n\n"
@@ -494,7 +503,7 @@ class CompareDirsTask(BaseTask):
 		self.__report += "\n\n"
 		self.__report += f"Task took: {self.duration}s"
 		self.__report += "\n\n"
-		return self.__report.replace("\n", "<br>\n")
+		return self.__report
 	
 	
 	
@@ -509,7 +518,7 @@ class FindCopiesTask(BaseTask):
 		self.copies_dict = {} # key: dir that contains copy, value: 
 		self.no_copies_list = [] # list of files without copies
 		self.__result_html_complete = False
-		pass
+		self.dir_has_full_copy = False
 	
 	
 	@property
@@ -517,7 +526,6 @@ class FindCopiesTask(BaseTask):
 		return f"FindCopiesTask for {self.dir.full_path}"
 	
 	
-	# @cProfile_wrapper
 	def run(self):
 		self._logger.info(f"run: starting with dir {self.dir.full_path}")
 		self.mark_task_start()
@@ -525,27 +533,23 @@ class FindCopiesTask(BaseTask):
 		for f in self.dir.files:
 			self.file_dict[f] = []
 		self._logger.debug("run: file_dict pre-created, checking files...")
-		
 		total_files = len(self.dir.files)
 		try:
 			progress_increase = 1 / total_files
 			for f in self.dir.files:
 				self._logger.debug(f"run: checking file {f.full_path}... progress: {self._progress}")
 				candidates = self._file_manager.find_copies(f)
-				# self._progress = self.dir.files.index(f) / total_files
 				self._progress += progress_increase
 				for c in candidates:
 					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
 						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self._progress}")
 						continue
 					if f.name == c.name:
-						# self._logger.debug(f"run: adding copy {c.id} - {c.full_path} for target file {f.full_path}")
 						self.file_dict[f].append(c)
 					else:
 						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add. progress: {self._progress}")
 			
 			self._logger.debug("run: file checking complete, file_dict filled.")
-			# self._logger.debug(f"run: file_dict: {self.file_dict}")
 			self._logger.debug("run: run complete.")
 			self.mark_task_OK()
 		except Exception as e:
@@ -556,7 +560,7 @@ class FindCopiesTask(BaseTask):
 	
 	
 	def get_copies_stats(self):
-		"""trasnpose file_dict into copies_dict, and accumulate no_copies_list"""
+		"""transpose file_dict into copies_dict, and accumulate no_copies_list"""
 		self._logger.debug("get_copies_stats: starting")
 		self.copies_dict = {}
 		self.no_copies_list = []
@@ -572,28 +576,20 @@ class FindCopiesTask(BaseTask):
 		self._logger.debug("get_copies_stats: complete")
 	
 	
-	@property
-	def result_html(self):
-		if self.__result_html_complete:
-			self._logger.debug("result_html: returning pre-generated report")
-			return self.__report.replace("\n", "<br>\n")
-		return self.result_html2()
-	
-	
-	@cProfile_wrapper
-	def result_html2(self):
-		self._logger.debug("result_html: starting")
+	# @cProfile_wrapper
+	def generate_report(self):
+		self._logger.debug("generate_report: starting")
 		self.__report = "\n\nStatus: " + str(self.state) + "\n"
 		self.__report += "\nDir: " + self.dir.full_path + "\n"
 		self.__report += f"({len(self.dir.files)} files)" + "\n\n"
 		self.get_copies_stats()
-		self._logger.debug("result_html: stage 1 complete")
+		self._logger.debug("generate_report: stage 1 complete")
 		self.__report += f"files without copies: {len(self.no_copies_list)}" + "\n"
 		for f in self.no_copies_list:
 			self.__report += f.full_path + "\n"
 		self.__report += "\n\n"
 		
-		self._logger.debug("result_html: stage 2 complete")
+		self._logger.debug("generate_report: stage 2 complete")
 		self.__report += "Copies:\n"
 		
 		for d in self.copies_dict.keys():
@@ -606,8 +602,10 @@ class FindCopiesTask(BaseTask):
 			set_checksum_copy_dir = set([f.checksum for f in d.files])
 			# then use these sets
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
+				self.dir_has_full_copy = True
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
+				self.dir_has_full_copy = True
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
@@ -617,12 +615,12 @@ class FindCopiesTask(BaseTask):
 				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- ERROR! -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 		
 		self.__report += "\n\n"
-		self._logger.debug("result_html: stage 3 complete")
+		self._logger.debug("generate_report: stage 3 complete")
 		self.__report += "All files:\n"
 		for k, v in self.file_dict.items():
 			self.__report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
 		self.__report += "\n\n" + f"Task took: {self.duration}s"
-		self._logger.debug(f"result_html: report: {self.__report}")
+		self._logger.debug(f"generate_report: report: {self.__report}")
 		return self.__report.replace("\n", "<br>\n")
 		
 
@@ -692,15 +690,14 @@ class CheckDirTask(BaseTask):
 		return f"CheckDirTask for {self.dir.full_path}"
 	
 	
-	@property
-	def result_html(self):
-		result = "CheckDirTask result:\n"
-		result += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
-		result += f"Actual dir: {self.new_dir.full_path}, {len(self.new_dir.files)} files" + "\n"
-		result += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
-		result += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
-		result += f"Task took: {self.duration}s"
-		return result.replace("\n", "<br>\n")
+	def generate_report(self):
+		self.__report = "CheckDirTask result:\n"
+		self.__report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
+		self.__report += f"Actual dir: {self.new_dir.full_path}, {len(self.new_dir.files)} files" + "\n"
+		self.__report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
+		self.__report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
+		self.__report += f"Task took: {self.duration}s"
+		return self.__report
 
 	
 	@property
@@ -734,8 +731,11 @@ class SplitDirTask(BaseTask):
 		target_dir_path = self.dir_obj.full_path
 		for f in self.dir_obj.files:
 			dirname = os.path.dirname(f.full_path)
+			if dirname == target_dir_path:
+				self._logger.debug(f"get_dict_of_subdirs: file {f.full_path} is in dir root, ignoring this file")
+				continue
 			if os.path.dirname(dirname) != target_dir_path:
-				dirname = target_dir_path + os.path.split(dirname)[-2]
+				dirname = target_dir_path + os.path.split(dirname)[-2] # error
 				self._logger.debug(f"get_dict_of_subdirs: detected next level of subdirs, using {dirname}")
 			if dirname != target_dir_path:
 				if dirname not in self.subdir_path_dict.keys():
@@ -743,7 +743,6 @@ class SplitDirTask(BaseTask):
 					self._logger.debug(f"get_dict_of_subdirs: created empty dict item for subdir {dirname}")
 				self.subdir_path_dict[dirname].append(f)
 				self._logger.debug(f"get_dict_of_subdirs: added file {f.full_path} to subdir {dirname}")
-		
 		self._logger.info(f"get_dict_of_subdirs: got subdirs: {self.subdir_path_dict.keys()}, total: {len(self.subdir_path_dict.keys())}")	
 		return self.subdir_path_dict
 	
@@ -782,7 +781,14 @@ class SplitDirTask(BaseTask):
 			result += "k\n"
 		result += "\n\n"
 		return result.replace("\n", "<br>\n")
-		
+	
+	
+	def generate_report(self):
+		self.__report = ""
+		self.__report += f"Directory {self.dir_obj.full_path} split status: {self.state}" + ".\n"
+		self.__report += ""
+		return self.__report
+	
 	
 	def run(self):
 		self._logger.debug(f"run: starting split for dir {self.dir_obj.full_path}")
@@ -799,7 +805,7 @@ class SplitDirTask(BaseTask):
 		self._logger.debug("run: complete")
 
 
-# TODO: under development
+# TODO: check this
 class CompileDirTask(BaseTask):
 	"""docstring for CompileDirTask"""
 	def __init__(self, path_to_new_dir, logger = None, file_manager = None, dir_manager = None, input_dir_list = []):
@@ -812,7 +818,8 @@ class CompileDirTask(BaseTask):
 		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
 		self.unique_files = []
 		self.dry_run = False
-		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p" 
+		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p"
+		self.MKDIR_COMMAND = "/usr/bin/mkdir -p" if os.path.isfile("/usr/bin/mkdir") else "/bin/mkdir -p"
 		pass
 	
 	
@@ -849,6 +856,12 @@ class CompileDirTask(BaseTask):
 	def create_copy_commands(self):
 		cmd_list = []
 		cmd_args_dict = {}
+		# creating or not creating new dir
+		if not os.path.isdir(self.path_to_new_dir):
+			cmd_list.append(f"{self.MKDIR_COMMAND} '{self.path_to_new_dir}'")
+			self._logger.debug(f"create_copy_commands: will create new dir {self.path_to_new_dir}")
+		else:
+			self._logger.debug(f"create_copy_commands: new dir {self.path_to_new_dir} already exist, will not create")
 		# generating new filenames if necessary
 		resulting_names = cmd_args_dict.keys()
 		for f in self.unique_files:
@@ -862,21 +875,24 @@ class CompileDirTask(BaseTask):
 				self._logger.debug(f"create_copy_commands: will copy {f.full_path} without renaming")
 		# compiling comands
 		for new_filename, orig_file in cmd_args_dict.items():
-			cmd_list.append(f"{self.CP_COMMAND} {orig_file.full_path} {self.path_to_new_dir}/{new_filename}")
+			cmd_list.append(f"{self.CP_COMMAND} '{orig_file.full_path}' '{self.path_to_new_dir}/{new_filename}'")
 		self._logger.debug(f"create_copy_commands: generated command list is: {cmd_list}")
 		return cmd_list
 	
 	
 	def run_commands(self, command_list):
 		if self.dry_run:
-			self._logger.debug("run_commands: will not execute commands due to dry_run == True")
+			self._logger.debug("run_commands: will not execute any command due to dry_run == True")
 			return True
-		try:
-			run_command(f"{self.CP_COMMAND} -p {self.path_to_new_dir}")
-			self._logger.debug(f"run_commands: created new dir {self.path_to_new_dir}")
-		except Exception as e:
-			self._logger.error(f"run_commands: could not create new dir {self.path_to_new_dir}. Got error: {e}, traceback: {traceback.format_exc()}")
-			return False
+		# try:
+		# 	if not os.path.isdir(self.path_to_new_dir):
+		# 		run_command(f"{self.MKDIR_COMMAND} '{self.path_to_new_dir}'")
+		# 		self._logger.debug(f"run_commands: created new dir {self.path_to_new_dir}")
+		# 	else:
+		# 		self._logger.debug(f"run_commands: new dir {self.path_to_new_dir} already exist")
+		# except Exception as e:
+		# 	self._logger.error(f"run_commands: could not create new dir {self.path_to_new_dir}. Got error: {e}, traceback: {traceback.format_exc()}")
+		# 	return False
 		progress_increment = 1 / len(command_list)
 		for cmd in command_list:
 			try:
@@ -888,6 +904,11 @@ class CompileDirTask(BaseTask):
 				self._logger.info("run_commands: stoping command execution due to error.")
 				return False
 		return True
+	
+	
+	def generate_report(self):
+		self.__report = f"CompileDirTask for new dir {self.path_to_new_dir}"
+		return self.__report
 	
 	
 	def run(self):
@@ -938,7 +959,7 @@ class DeleteDirTask(BaseTask):
 		return f"DeleteDirTask for {self.target_dir_path}"
 		
 	
-	@cProfile_wrapper
+	# @cProfile_wrapper
 	def run(self):
 		self.mark_task_start()
 		self._logger.debug(f"run: starting deletion of dir {self.target_dir_id} - {self.target_dir_path}")

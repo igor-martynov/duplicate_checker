@@ -144,10 +144,9 @@ class FileManager(BaseManager):
 	
 
 class DirManager(BaseManager):
-	""" DirManager"""
+	"""DirManager"""
 	def __init__(self, session = None, logger = None):
 		super(DirManager, self).__init__(session = session, logger = logger)
-		
 		pass
 	
 	
@@ -248,7 +247,7 @@ class TaskManager(BaseManager):
 			else:
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
-			self._logger.error(f"start_task: could not find task {task}")
+			self._logger.error(f"start_task: could not find task {task} in list")
 	
 	
 	def start_autostart_thread(self):
@@ -264,14 +263,11 @@ class TaskManager(BaseManager):
 						break
 					if task.running or task.pending is False:
 						# ignore task
-						# self._logger.debug(f"start_autostart_thread: ignoring task: {task.descr}. its status is: r: {task.running}, p: {task.pending}")
 						pass
 					else:
 						task.start()
 						wait_till_task_completes(task)
 				time.sleep(self.SLEEP_BETWEEN_TASKS)
-				# self._logger.debug(f"start_autostart_thread: loop over all tasks complete")
-				pass
 			self._logger.info(f"start_autostart_thread: complete on user request")
 			
 		self.autostart_enabled = True
@@ -285,14 +281,14 @@ class TaskManager(BaseManager):
 			filename = f"./tasks/task_{task.__class__.__name__}_{task.date_start.isoformat().replace(':','')}.log"
 			with open(filename, "w") as f:
 				f.write(task.result_html)
-				self._logger.info(f"save_task_result: result saved as {filename}")
+				self._logger.info(f"save_task_result: task result saved as {filename}")
 		except Exception as e:
-			self._logger.error(f"save_task_result: error {e}, traceback: {traceback.format_exc()}")
+			self._logger.error(f"save_task_result: got error {e}, traceback: {traceback.format_exc()}")
 		
 	
 	def add_directory(self, path_to_dir, is_etalon = False):
 		if not os.path.isdir(path_to_dir):
-			self._logger.info(f"add_directory: will not add dir {path_to_dir} as it is not a dir")
+			self._logger.info(f"add_directory: will not add dir {path_to_dir} - it is not a dir or does not exist")
 			return None
 		if self.ignore_duplicates and self._dir_manager.directory_exist(path_to_dir):
 			self._logger.info(f"add_directory: directory {path_to_dir} already exist, not adding it")
@@ -316,7 +312,6 @@ class TaskManager(BaseManager):
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager)
 		self.add_task(new_task)
-		self._logger.debug("delete_directory: complete")
 		return new_task
 	
 	
@@ -343,7 +338,7 @@ class TaskManager(BaseManager):
 	
 	
 	def split_dir(self, target_dir):
-		new_task = SplitDirTask(target_dir, logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = SplitDirTask(target_dir, logger = self._logger.getChild(f"SplitDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
 		self.add_task(new_task)
 		return new_task
 	
