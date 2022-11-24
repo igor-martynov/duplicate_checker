@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-11-23
+# 2022-11-24
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -218,6 +218,16 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# web_app.wsgi_app = ProfilerMiddleware(web_app.wsgi_app)
 		
 		
+		def get_path_to_new_dirs_from_request(request):
+			path_to_new_dirs_list = [normalize_path_to_dir(d) for d in request.args.getlist("path_to_new_dir")]
+			return path_to_new_dirs_list
+		
+		def get_add_options_for_new_dirs_from_request(request):
+			is_etalon = True if request.args.get("is_etalon") == "1" else False
+			add_subdirs = True if request.args.get("add_subdirs") == "1" else False
+			return (is_etalon, add_subdirs)
+		
+		
 		def get_dir_objects_from_request(request):
 			dirs_list = []
 			dir_ids_list = request.args.getlist("dir_id")
@@ -268,10 +278,10 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("show_file.html", file = found_file, duplicates = duplicates)
 		
 		
-		@web_app.route("/search-files-by-checksum/<string:file_checksum>", methods = ["GET"])
-		def find_files_by_checksum(file_checksum):
-			found_files = self.file_manager.get_by_checksum(file_checksum)
-			self._logger.debug(f"find_files_by_checksum: found files {found_files} by checksum {file_checksum}")
+		@web_app.route("/api/get-files-by-checksum", methods = ["GET"])
+		def get_files_by_checksum_api():
+			found_files = self.file_manager.get_by_checksum(request.args.get("checksum"))
+			requested_dir = self.dir_manager.get_by_id(request.args.get("dir_id"))
 			return render_template("show_files.html", files = found_files)
 		
 		
@@ -305,6 +315,15 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = f"ERROR: {e}, traceback: {traceback.format_exc()}")
 				return render_template("add_dir.html", msg_text = f"dir(s) added")
 		
+		
+		
+		@web_app.route("/api/add-dirs", methods = ["GET"])
+		def add_dirs_api():
+			path_to_new_dir_list = get_path_to_new_dirs_from_request(request)
+			is_etalon, add_subdirs = get_add_options_for_new_dirs_from_request(request)
+			self._logger.debug(f"add_dirs_api: will add dirs {path_to_new_dir_list}, is_etalon: {is_etalon}, add_subdirs: {add_subdirs}")
+			return render_template("blank_page.html", page_text = "")
+			
 		
 		@web_app.route("/delete-file/<int:file_id>", methods = ["GET", "POST"])
 		def delete_file(file_id):
