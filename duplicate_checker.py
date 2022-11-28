@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-11-24
+# 2022-11-28
 
-__version__ = "0.9.1"
+
+__version__ = "0.9.4"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -40,6 +41,7 @@ from managers import *
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
 from sqlalchemy import create_engine, select, Index, inspect
 
+import json
 
 
 
@@ -236,6 +238,8 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				dir_obj = self.dir_manager.get_by_id(dir_id)
 				if dir_obj is not None:
 					dirs_list.append(dir_obj)
+				else:
+					self._logger.error(f"get_dir_objects_from_request: dir with id {file_id} does not exist! ignoring.")
 			return dirs_list
 		
 		
@@ -244,6 +248,18 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			dirs_list = get_dir_objects_from_request(request)
 			path_to_new_dir = urllib.parse.unquote(request.args.get("new_dir"))
 			return dirs_list, path_to_new_dir
+		
+		
+		def get_file_objects_from_request(request):
+			files_list = []
+			file_ids_list = request.args.getlist("file_id")
+			for file_id in file_ids_list:
+				file_obj = self.file_manager.get_by_id(file_id)
+				if file_obj is not None:
+					files_list.append(file_obj)
+				else:
+					self._logger.error(f"get_file_objects_from_request: file with id {file_id} does not exist! ignoring.")
+			return files_list
 		
 		
 		@web_app.route("/", methods = ["GET"])
@@ -532,13 +548,40 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# API
-		# get_file_by_checksum
 		# get_dir_full_path_by_id
-		# get_file_fp_by_id
-		# get_file_by_id
+		@web_app.route("/api/get_dir_full_path_by_id", methods = ["GET"])
+		def get_dir_full_path_by_id_api():
+			target_dir = get_dir_objects_from_request(request)[0]
+			return target_dir.full_path
+		
+		
+		# get_file_full_path_by_id
+		@web_app.route("/api/get_file_full_path_by_id", methods = ["GET"])
+		def get_file_full_path_by_id_api():
+			target_file = get_file_objects_from_request(request)[0]
+			return target_file.full_path
 		
 			
+		# get_file_by_id
 		
+		
+		
+		# delete_files_api
+		
+		
+		
+		# get_file_by_id_to_js
+		@web_app.route("/api/get_file_by_id_to_js", methods = ["GET"])
+		def get_file_by_id_to_js():
+			target_file = get_file_objects_from_request(request)[0]
+			return json.dumps(target_file.dict_for_json)
+			
+		
+		# get_dir_by_id_to_js
+		@web_app.route("/api/get_dir_by_id_to_js", methods = ["GET"])
+		def get_dir_by_id_to_js():
+			target_dir = get_dir_objects_from_request(request)[0]
+			return json.dumps(target_dir.dict_for_json)
 		
 		
 		

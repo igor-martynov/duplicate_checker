@@ -45,6 +45,11 @@ class Directory(DeclarativeBase):
 	def url_html_code(self):
 		return f"<a href='/show-dir/{self.id}' title='show dir'>{self.id} - {self.full_path}</a>"
 
+	
+	@property
+	def dict_for_json(self):
+		return {"id": self.id, "full_path": self.full_path, "files": [f.id for f in self.files], "is_etalon": self.is_etalon}
+		
 
 
 class File(DeclarativeBase):
@@ -78,6 +83,11 @@ class File(DeclarativeBase):
 	def url_html_code(self):
 		return f"<a href='/show-file/{self.id}' title='show file'>{self.id} - {self.full_path}</a>"
 	
+	
+	@property
+	def dict_for_json(self):
+		return {"id": self.id, "full_path": self.full_path, "checksum": self.checksum, "dir": self.dir.id, "is_etalon": self.is_etalon}
+	
 
 
 # TODO: under development
@@ -92,4 +102,9 @@ class TaskRecord(DeclarativeBase):
 	task_result = Column(String, nullable = True)
 	dir_id = Column(Integer, ForeignKey("dirs.id"))
 	
+
+	@property
+	def dict_for_json(self):
+		
+		return {}
 

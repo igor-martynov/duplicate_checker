@@ -225,7 +225,6 @@ class AddDirTask(BaseTask):
 		
 		if self._logger is not None:
 			self._logger.debug(f"__init__: init complete with target_dir_path {self.target_dir_path}")
-		pass
 	
 	
 	@property
@@ -265,26 +264,26 @@ class AddDirTask(BaseTask):
 		return result
 	
 	
-	def wait_till_complete(self, result, dict_list):
+	def _wait_till_complete(self, result, dict_list):
 		dict_length = len(dict_list)
 		complete = result._index
 		while complete != dict_length:
-			self._logger.debug(f"wait_till_complete: waiting for pool, complete: {complete} of {dict_length}...")
+			self._logger.debug(f"_wait_till_complete: waiting for pool, complete: {complete} of {dict_length}...")
 			time.sleep(self._sleep_delay)
 			complete = result._index
 			self._progress = complete / dict_length
-		self._logger.debug(f"wait_till_complete: pool results ready: {result}")
+		self._logger.debug(f"_wait_till_complete: pool results ready: {result}")
 		return
 	
 	
-	def create_directory_and_files(self, result, save = True):
+	def _create_directory_and_files(self, result, save = True):
 		now = datetime.datetime.now()
 		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path))
 		files = []
 		for r in result:
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
 		new_dir.files = files
-		self._logger.info(f"create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
+		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
 		self.dir = new_dir
 		return new_dir
 	
@@ -306,8 +305,8 @@ class AddDirTask(BaseTask):
 			dict_list = self._create_input_list()
 			dict_length = len(dict_list)
 			result = self._create_multiprocessing_pool(dict_list)
-			self.wait_till_complete(result, dict_list)
-			new_dir = self.create_directory_and_files(result)
+			self._wait_till_complete(result, dict_list)
+			new_dir = self._create_directory_and_files(result)
 			if self.save_results:
 				self.save()	
 			else:
@@ -332,7 +331,7 @@ class AddDirTask(BaseTask):
 			result_str = f"Dir: {self.dir.full_path}, total files: {len(self.dir.files)}" + "<br>\n<br>\n"
 			for f in self.dir.files:
 				result_str += f"f: {f.full_path} - {f.checksum}" + "<br>\n"
-			result_str += f"Task took: {self.duration}s"
+			result_str += f"Task took: {secs_to_hrf(self.duration)}"
 			return result_str
 
 
@@ -356,8 +355,6 @@ class CompareDirsTask(BaseTask):
 		self.equal_names_diff_checsums = []
 		
 		self.dirs_are_equal = None
-		# self._a_is_subset_of_b = None
-		# self._b_is_subset_of_a = None
 		pass
 	
 	
@@ -440,6 +437,7 @@ class CompareDirsTask(BaseTask):
 			self.check_dirs_equal()
 			self._logger.info(f"run: Totals: files_on_both: {len(self.files_on_both)}, files_a_on_b: {len(self.files_a_on_b)}, files_b_on_b: {len(self.files_b_on_a)}, files_only_on_a: {len(self.files_only_on_a)}, files_only_on_b: {len(self.files_only_on_b)}")
 			self._logger.debug("run: complete")
+			self.generate_report()
 			self.mark_task_OK()
 		except Exception as e:
 			self._logger.error(f"run: got error while running: {e}, traceback: {traceback.format_exc()}")
@@ -694,6 +692,11 @@ class CheckDirTask(BaseTask):
 		self.__report = "CheckDirTask result:\n"
 		self.__report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
 		self.__report += f"Actual dir: {self.new_dir.full_path}, {len(self.new_dir.files)} files" + "\n"
+		if self.subtask_compare.dirs_are_equal:
+			self.__report += "Dir is OK, all checksums are actual\n"
+		else:
+			self.__report += "DIR HAS CHENGED! Please check subtask CompareDirsTask.\n"
+		self.__report += "\n"
 		self.__report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		self.__report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
 		self.__report += f"Task took: {self.duration}s"
@@ -785,8 +788,11 @@ class SplitDirTask(BaseTask):
 	
 	def generate_report(self):
 		self.__report = ""
-		self.__report += f"Directory {self.dir_obj.full_path} split status: {self.state}" + ".\n"
-		self.__report += ""
+		self.__report += f"Directory {self.dir_obj.full_path} split status: {self.state}" + ".\n\n"
+		self.__report += "Added dirs:"
+		for d in self.subdirs:
+			self.__report += f"Dir {d.full_path} ({len(d.files)} files)"
+		self.__report += "\n" + f"Task took: {secs_to_hrf(self.duration)}"
 		return self.__report
 	
 	
@@ -884,15 +890,6 @@ class CompileDirTask(BaseTask):
 		if self.dry_run:
 			self._logger.debug("run_commands: will not execute any command due to dry_run == True")
 			return True
-		# try:
-		# 	if not os.path.isdir(self.path_to_new_dir):
-		# 		run_command(f"{self.MKDIR_COMMAND} '{self.path_to_new_dir}'")
-		# 		self._logger.debug(f"run_commands: created new dir {self.path_to_new_dir}")
-		# 	else:
-		# 		self._logger.debug(f"run_commands: new dir {self.path_to_new_dir} already exist")
-		# except Exception as e:
-		# 	self._logger.error(f"run_commands: could not create new dir {self.path_to_new_dir}. Got error: {e}, traceback: {traceback.format_exc()}")
-		# 	return False
 		progress_increment = 1 / len(command_list)
 		for cmd in command_list:
 			try:
