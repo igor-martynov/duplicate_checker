@@ -22,90 +22,32 @@ from sqlalchemy import create_engine, select
 
 sys.path.append("./")
 from base import *
+from sqlalchemy_declarative import TaskRecord
 
 
 
-class BaseTask(object):
+class BaseTask(TaskRecord):
 	"""BaseTask - base class for all tasks"""
 	
-	def __init__(self, logger = None, file_manager = None, dir_manager = None):
+	def __init__(self, logger = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(BaseTask, self).__init__()
 		
 		self._file_manager = file_manager
 		self._dir_manager = dir_manager
+		self._task_manager = task_manager
 		self._logger = logger
 		
+		self._type = self.__class__.__name__
 		self.date_start = None
 		self.date_end = None
-		self.pending = True
-		self.running = None
-		self.complete = None
-		self.OK = None
-		self.error_message = ""
 		
-		self.result_OK = None # True == result OK (as expexted), False == result unexpected
-		
-		self.__report = ""
-		self._progress = 0.0
+		# self._progress = 0.0
 		self._prev_progress = None
 		self._prev_datetime = None
 		self._prev_ETA_S = 0
 		
 		self.save_results = True
 		self.__result_html_complete = False
-		
-		
-	@property		
-	def state(self):
-		"""returns text description of current task state"""
-		if self.date_start is None and not self.running:
-			return "PENDING"
-		if self.complete and self.OK and self.date_end is not None and not self.running:
-			return "COMPLETE OK"
-		if not self.complete and self.OK:
-			return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {secs_to_hrf(self.ETA_s)}, ETA: {datetime_to_str(self.ETA_datetime)})"
-		if not self.OK and self.running:
-			return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
-		if (not self.OK and not self.running) or (not self.OK and not self.complete):
-			return "COMPLETE FAILED"
-		return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
-	
-	
-	@property
-	def progress(self):
-		return self._progress
-	
-	
-	@property
-	def ETA_s(self):
-		"""Estimated Time Arrival in seconds"""
-		if self._prev_progress is None:
-			self._prev_progress = 0.0
-			self._prev_datetime = self.date_start
-		curr_progress = self._progress
-		curr_datetime = datetime.datetime.now()
-		progress_speed = (curr_progress - self._prev_progress) / (curr_datetime - self._prev_datetime).total_seconds() # % in 1 second
-		if progress_speed == 0.0:
-			eta = self._prev_ETA_S
-		else:
-			eta = (1.0 - curr_progress) / progress_speed
-			self._prev_ETA_S = eta
-		self._prev_progress = curr_progress
-		self._prev_datetime = curr_datetime
-		self._logger.debug(f"ETA: current eta: {eta} seconds")	
-		return eta
-	
-	
-	@property
-	def ETA_datetime(self):
-		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
-		self._logger.debug(f"ETA_datetime: will return {res}")
-		return res
-	
-	
-	@property
-	def descr(self):
-		return f"Task {self.__class__.__name__}"
 	
 	
 	def run(self):
@@ -168,43 +110,16 @@ class BaseTask(object):
 		self.result_OK = False
 	
 	
-	@property
-	def preview_html(self):
-		return f"Preview of {self.__class__.__name__}<br>"
-	
-	
 	# @property
-	# def result_html(self):
-	# 	return f"status: {self.state}"
-	
-	
-	@property
-	def result_html(self):
-		if self.__result_html_complete:
-			self._logger.debug("result_html: returning pre-generated report")
-			return self.__report.replace("\n", "<br>\n")
-		return self.generate_report().replace("\n", "<br>\n")
+	# def preview_html(self):
+	# 	return f"Preview of {self.__class__.__name__}<br>"
 	
 	
 	def generate_report(self):
+		self._logger.debug("generate_report: default generate_report called, normally this should not happen")
 		self.__report = f"Task: {self.descr}, status: {self.state}"
 		return self.__report
 	
-	
-	@property
-	def duration(self):
-		return (self.date_end - self.date_start).total_seconds() if self.date_start is not None and self.date_end is not None else 0.0
-
-
-	def pregenerate_report(self):
-		if self.running:
-			self._logger.debug("pregenerate_report: should pre-generate report, but cannot - task is still running. passing by.")
-			return False
-		self.generate_report()
-		self.__result_html_complete = True
-		self._logger.debug("pregenerate_report: report pre-generated")
-		return True
-
 	
 
 class AddDirTask(BaseTask):
@@ -212,8 +127,8 @@ class AddDirTask(BaseTask):
 	
 	"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, is_etalon = False, checksum_algorithm = "md5"):
-		super(AddDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
+		super(AddDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir_path = target_dir
 		self.file_list = []
 		self.is_etalon = is_etalon
@@ -229,7 +144,7 @@ class AddDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"AddDirTask for {self.target_dir_path}"
+		return f"Task {self.task_type} for {self.target_dir_path}"
 	
 	
 	def get_dir_listing(self, path_to_dir):
@@ -321,7 +236,8 @@ class AddDirTask(BaseTask):
 			self.mark_task_failure()
 			self.mark_result_failure()
 			self.mark_task_end()
-	
+		# TODO: should call genetate_report here
+		
 	
 	@property
 	def result_html(self):
@@ -341,26 +257,23 @@ class CompareDirsTask(BaseTask):
 	
 	"""
 	
-	def __init__(self, dir_a, dir_b, logger = None, file_manager = None, dir_manager = None):
-		super(CompareDirsTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
-		
+	def __init__(self, dir_a, dir_b, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(CompareDirsTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir_a = dir_a
 		self.dir_b = dir_b
-		
 		self.files_on_both = []
 		self.files_a_on_b = []
 		self.files_b_on_a = []
 		self.files_only_on_a = []
 		self.files_only_on_b = []
 		self.equal_names_diff_checsums = []
-		
 		self.dirs_are_equal = None
 		pass
 	
 	
 	@property
 	def descr(self):
-		return f"CompareDirs task for {self.dir_a.full_path} and {self.dir_b.full_path}"
+		return f"Task {self.task_type} for {self.dir_a.full_path} and {self.dir_b.full_path}"
 	
 	
 	@property
@@ -437,12 +350,12 @@ class CompareDirsTask(BaseTask):
 			self.check_dirs_equal()
 			self._logger.info(f"run: Totals: files_on_both: {len(self.files_on_both)}, files_a_on_b: {len(self.files_a_on_b)}, files_b_on_b: {len(self.files_b_on_a)}, files_only_on_a: {len(self.files_only_on_a)}, files_only_on_b: {len(self.files_only_on_b)}")
 			self._logger.debug("run: complete")
-			self.generate_report()
 			self.mark_task_OK()
 		except Exception as e:
 			self._logger.error(f"run: got error while running: {e}, traceback: {traceback.format_exc()}")
 			self.mark_task_failure()
 		self.mark_task_end()
+		self.generate_report()
 	
 	
 	def check_dirs_equal(self):
@@ -460,7 +373,6 @@ class CompareDirsTask(BaseTask):
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
-			
 		self.__report = ""
 		self.__report += f"Directory comparation status: {self.state}" + ".\n"
 		self.__report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
@@ -508,20 +420,19 @@ class CompareDirsTask(BaseTask):
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of files of one dir"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
-		super(FindCopiesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
-		
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(FindCopiesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
 		self.copies_dict = {} # key: dir that contains copy, value: 
 		self.no_copies_list = [] # list of files without copies
-		self.__result_html_complete = False
+		# self.__result_html_complete = False
 		self.dir_has_full_copy = False
 	
 	
 	@property
 	def descr(self):
-		return f"FindCopiesTask for {self.dir.full_path}"
+		return f"Task {self.task_type} for {self.dir.full_path}"
 	
 	
 	def run(self):
@@ -533,7 +444,7 @@ class FindCopiesTask(BaseTask):
 		self._logger.debug("run: file_dict pre-created, checking files...")
 		total_files = len(self.dir.files)
 		try:
-			progress_increase = 1 / total_files
+			progress_increase = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
 				self._logger.debug(f"run: checking file {f.full_path}... progress: {self._progress}")
 				candidates = self._file_manager.find_copies(f)
@@ -546,7 +457,6 @@ class FindCopiesTask(BaseTask):
 						self.file_dict[f].append(c)
 					else:
 						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add. progress: {self._progress}")
-			
 			self._logger.debug("run: file checking complete, file_dict filled.")
 			self._logger.debug("run: run complete.")
 			self.mark_task_OK()
@@ -554,7 +464,7 @@ class FindCopiesTask(BaseTask):
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
 			self.mark_task_failure()
 		self.mark_task_end()
-		self.pregenerate_report()
+		self.generate_report()
 	
 	
 	def get_copies_stats(self):
@@ -618,7 +528,7 @@ class FindCopiesTask(BaseTask):
 		for k, v in self.file_dict.items():
 			self.__report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
 		self.__report += "\n\n" + f"Task took: {self.duration}s"
-		self._logger.debug(f"generate_report: report: {self.__report}")
+		self._logger.debug(f"generate_report: report length: {len(self.__report)}")
 		return self.__report.replace("\n", "<br>\n")
 		
 
@@ -626,8 +536,8 @@ class FindCopiesTask(BaseTask):
 class CheckDirTask(BaseTask):
 	"""docstring for CheckDirTask"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, checksum_algorithm = "md5"):
-		super(CheckDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
+		super(CheckDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
 		self.new_dir = None
 		self.subtask_add = None
@@ -636,13 +546,22 @@ class CheckDirTask(BaseTask):
 		
 	
 	def init_subtask_add(self):
-		self.subtask_add = AddDirTask(self.dir.full_path, logger = self._logger.getChild("SubTask_AddDirTask_"), file_manager = self._file_manager, dir_manager = self._dir_manager, is_etalon = self.dir.is_etalon, checksum_algorithm = self.checksum_algorithm)
+		self.subtask_add = AddDirTask(self.dir.full_path,
+			logger = self._logger.getChild("SubTask_AddDirTask_"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			is_etalon = self.dir.is_etalon,
+			checksum_algorithm = self.checksum_algorithm)
 		self.subtask_add.save_results = False
 		self._logger.debug(f"init_subtask_add: adding subtask AddDirTask, target_dir_path is: {self.dir.full_path}")
 	
 	
 	def init_subtask_compare(self):
-		self.subtask_compare = CompareDirsTask(self.dir, self.subtask_add.dir, logger = self._logger.getChild("SubTask_CompareDirsTask_"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		self.subtask_compare = CompareDirsTask(self.dir,
+			self.subtask_add.dir,
+			logger = self._logger.getChild("SubTask_CompareDirsTask_"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager)
 		self._logger.debug(f"init_subtask_compare: adding subtask CompareDirsTask, dir A: {self.dir}, dir B: {self.subtask_add.dir}")
 	
 	
@@ -680,12 +599,12 @@ class CheckDirTask(BaseTask):
 			self._logger.error(f"got error while running: {e}, traceback: {traceback.format_exc()}")
 			self.mark_task_failure()
 		self.mark_task_end()
-		self.pregenerate_report()
+		self.generate_report()
 	
 	
 	@property
 	def descr(self):
-		return f"CheckDirTask for {self.dir.full_path}"
+		return f"Task {self.task_type} for dir {self.dir.full_path}"
 	
 	
 	def generate_report(self):
@@ -700,6 +619,7 @@ class CheckDirTask(BaseTask):
 		self.__report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		self.__report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
 		self.__report += f"Task took: {self.duration}s"
+		self._logger.debug(f"generate_report: report ready, length: {len(self.__report)}")
 		return self.__report
 
 	
@@ -717,8 +637,8 @@ class CheckDirTask(BaseTask):
 class SplitDirTask(BaseTask):
 	"""Task to split dir into individual subdirs and add them to the DB"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
-		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir_obj = target_dir
 		self.subdirs = []
 		self.subdir_path_dict = dict()
@@ -726,7 +646,7 @@ class SplitDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"SplitDirTask for {self.dir_obj.full_path}"
+		return f"Task {self.task_type} for dir {self.dir_obj.full_path}"
 	
 	
 	def get_dict_of_subdirs(self):
@@ -797,7 +717,6 @@ class SplitDirTask(BaseTask):
 	
 	
 	def run(self):
-		self._logger.debug(f"run: starting split for dir {self.dir_obj.full_path}")
 		self.mark_task_start()
 		self.get_dict_of_subdirs()
 		self.create_subdirs()
@@ -807,15 +726,15 @@ class SplitDirTask(BaseTask):
 			self.mark_result_OK()
 		else:
 			self.mark_result_failure()
-		self.pregenerate_report()
-		self._logger.debug("run: complete")
+		self.generate_report()
+		
 
 
 # TODO: check this
 class CompileDirTask(BaseTask):
 	"""docstring for CompileDirTask"""
-	def __init__(self, path_to_new_dir, logger = None, file_manager = None, dir_manager = None, input_dir_list = []):
-		super(CompileDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+	def __init__(self, path_to_new_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, input_dir_list = []):
+		super(CompileDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.path_to_new_dir = path_to_new_dir
 		self.new_dir = None
 		self.input_dirs = input_dir_list
@@ -831,7 +750,7 @@ class CompileDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"CompileDirTask for {self.path_to_new_dir}"
+		return f"Task {self.task_type} for new dir {self.path_to_new_dir}"
 	
 	
 	def get_unique_file_list(self):
@@ -937,23 +856,22 @@ class CompileDirTask(BaseTask):
 			self.mark_task_failure()
 			return
 		self.mark_task_end()
-		self.pregenerate_report()
+		self.generate_report()
 
 
 
 class DeleteDirTask(BaseTask):
 	"""This task implements dir deletion via tasks mechanism, thus improving data integrity and reducing risks of race conditions"""
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None):
-		super(DeleteDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager)
+	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(DeleteDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir = target_dir
 		self.target_dir_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
-		pass
 	
 	
 	@property
 	def descr(self):
-		return f"DeleteDirTask for {self.target_dir_path}"
+		return f"Task {self.task_type} for dir {self.target_dir_path}"
 		
 	
 	# @cProfile_wrapper
@@ -975,6 +893,40 @@ class DeleteDirTask(BaseTask):
 			self.mark_result_failure()
 			self.mark_task_failure()
 		self.mark_task_end()
+		self.generate_report()
 
 
+
+# TODO: this should be extended
+class DeleteFilesTask(BaseTask):
+	"""docstring for DeleteFilesTask"""
+	def __init__(self, file_list, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(DeleteFilesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+		self.files_to_delete = file_list
 	
+	
+	def descr(self):
+		return f"Task {self.task_type} for {len(self.files_to_delete)} files"
+	
+	
+	def run(self):
+		self.mark_task_start()
+		
+		try:
+			for f in self.files_to_delete:
+				self._file_manager.delete(f)
+			self.mark_task_OK()
+			self.mark_result_OK()
+		except Exception as e:
+			self.mark_task_failure()
+			self.mark_result_failure()
+			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
+		self.mark_task_end()
+		self.generate_report()
+	
+	
+	def generate_report(self):
+		self.__report = "DeleteFilesTask result:\n Deleted files:\n"
+		for f in self.files_to_delete:
+			self.__report += f"{f.id} - {f.full_path} - {f.checksum}"
+		

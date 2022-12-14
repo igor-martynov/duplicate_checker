@@ -69,10 +69,14 @@ class BaseManager(object, metaclass = MetaSingleton):
 	
 	def delete(self, obj):
 		"""fully delete object, including DB commit"""
-		self._session.delete(obj)
-		self._session.commit()
-		self._logger.info(f"delete: object deleted: {obj}, full_path: {obj.full_path}")
-		
+		try:
+			self._session.delete(obj)
+			self._session.commit()
+			self._logger.info(f"delete: object deleted: {obj}")
+			return True
+		except Exception as e:
+			self._logger.error(f"delete: got error while deleting {obj}: {e}, traceback: {traceback.format_exc()}")
+	
 	
 	def create(self, full_path = ""):
 		raise NotImplemented
@@ -91,7 +95,7 @@ class BaseManager(object, metaclass = MetaSingleton):
 class FileManager(BaseManager):
 	"""FileManager
 	
-	responsible for: all file operations: get by id, get by checksum, 
+	responsible for all file operations: get by id, get by checksum, 
 	"""
 	
 	def __init__(self, session = None, logger = None):
@@ -144,7 +148,9 @@ class FileManager(BaseManager):
 	
 
 class DirManager(BaseManager):
-	"""DirManager"""
+	"""DirManager
+	responsible for all dir operations"""
+	
 	def __init__(self, session = None, logger = None):
 		super(DirManager, self).__init__(session = session, logger = logger)
 		pass
@@ -204,7 +210,7 @@ class TaskManager(BaseManager):
 		self.checksum_algorithm = checksum_algorithm
 		self.ignore_duplicates = ignore_duplicates
 		
-		self.tasks = []
+		self.current_tasks = [] # only tasks from this session
 		self.autostart_enabled = task_autostart
 		
 		self.__thread = None
@@ -212,9 +218,20 @@ class TaskManager(BaseManager):
 		self.SLEEP_BETWEEN_CHECKS = 5
 	
 	
+	def get_full_list(self):
+		res = self._session.query(TaskRecord).all()
+		self._logger.debug(f"get_full_list: got {len(res)} -  {res}.")
+		return res
+	
+	
+	def get_by_id(self, _id):
+		res = self._session.query(TaskRecord).get(_id)
+		return res
+	
+	
 	@property
 	def current_running_task(self):
-		for task in self.tasks:
+		for task in self.current_tasks:
 			if task.running:
 				return task
 		return None
@@ -235,19 +252,21 @@ class TaskManager(BaseManager):
 	
 	def add_task(self, task = None):
 		if task is None: return None
-		self.tasks.append(task)
+		self._session.add(task)
+		self.db_commit()
+		self.current_tasks.append(task)
 		self._logger.debug(f"create_task: task added: {task}")
 	
 	
 	def start_task(self, task):
-		if task in self.tasks:
+		if task in self.current_tasks:
 			if task.running is None:
 				self._logger.info(f"start_task: starting task {task}")
 				task.start()
 			else:
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
-			self._logger.error(f"start_task: could not find task {task} in list")
+			self._logger.error(f"start_task: could not find task {task} in current task list")
 	
 	
 	def start_autostart_thread(self):
@@ -258,7 +277,7 @@ class TaskManager(BaseManager):
 		def autostart_thread():
 			time.sleep(self.SLEEP_BETWEEN_CHECKS)
 			while self.autostart_enabled is True:
-				for task in self.tasks:
+				for task in self.current_tasks:
 					if self.autostart_enabled is False:
 						break
 					if task.running or task.pending is False:
@@ -299,6 +318,7 @@ class TaskManager(BaseManager):
 			logger = self._logger.getChild("AddDirTask_" + str(path_to_dir.split(os.sep)[-1])),
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
+			task_manager = self,
 			is_etalon = is_etalon,
 			checksum_algorithm = self.checksum_algorithm)
 		self.add_task(new_task)
@@ -310,19 +330,28 @@ class TaskManager(BaseManager):
 		new_task = DeleteDirTask(target_dir,
 			logger = self._logger.getChild("DeleteDirTask_" + str(target_dir.full_path.split(os.sep)[-1])),
 			file_manager = self._file_manager,
-			dir_manager = self._dir_manager)
+			dir_manager = self._dir_manager,
+			task_manager = self)
 		self.add_task(new_task)
 		return new_task
 	
 	
 	def compare_directories(self, dir_a, dir_b):
-		new_task = CompareDirsTask(dir_a, dir_b, logger = self._logger.getChild(f"CompareDirsTask_{dir_a.id}_{dir_b.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = CompareDirsTask(dir_a, dir_b,
+			logger = self._logger.getChild(f"CompareDirsTask_{dir_a.id}_{dir_b.id}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			task_manager = self)
 		self.add_task(new_task)
 		return new_task
 	
 	
 	def find_copies(self, target_dir):
-		new_task = FindCopiesTask(target_dir, logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = FindCopiesTask(target_dir,
+			logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			task_manager = self)
 		self.add_task(new_task)
 		return new_task
 		
@@ -332,21 +361,40 @@ class TaskManager(BaseManager):
 			logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"),
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
+			task_manager = self,
 			checksum_algorithm = self.checksum_algorithm)
 		self.add_task(new_task)
 		return new_task
 	
 	
 	def split_dir(self, target_dir):
-		new_task = SplitDirTask(target_dir, logger = self._logger.getChild(f"SplitDirTask_{target_dir.id}"), file_manager = self._file_manager, dir_manager = self._dir_manager)
+		new_task = SplitDirTask(target_dir,
+			logger = self._logger.getChild(f"SplitDirTask_{target_dir.id}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			task_manager = self)
 		self.add_task(new_task)
 		return new_task
 	
 	
 	def compile_dir(self, path_to_new_dir, input_dir_list):
-		new_task = CompileDirTask(path_to_new_dir, logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),  file_manager = self._file_manager, dir_manager = self._dir_manager, input_dir_list = input_dir_list)
+		new_task = CompileDirTask(path_to_new_dir,
+			logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			task_manager = self,
+			input_dir_list = input_dir_list)
 		self.add_task(new_task)
 		return new_task
-
+	
+	
+	def delete_files(self, files_to_delete):
+		new_task = DeleteFilesTask(files_to_delete,
+			logger = self._logger.getChild(f"DeleteFilesTask_{len(self.current_tasks)}"),
+			file_manager = self._file_manager,
+			dir_manager = self._dir_manager,
+			task_manager = self)
+		self.add_task(new_task)
+		return new_task
 	
 	

@@ -9,10 +9,12 @@ import logging
 import logging.handlers
 
 # SQL Alchemy
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
+
+from base import secs_to_hrf
 
 
 DeclarativeBase = declarative_base()
@@ -96,15 +98,93 @@ class TaskRecord(DeclarativeBase):
 	
 	__tablename__ = "tasks"
 	id = Column(Integer, primary_key = True)
-	task_type = Column(String, nullable = True)
+	_type = Column(String, nullable = True)
 	date_start = Column(DateTime, nullable = True)
 	date_end = Column(DateTime, nullable = True)
 	task_result = Column(String, nullable = True)
-	dir_id = Column(Integer, ForeignKey("dirs.id"))
+	target_dir_id = Column(Integer, ForeignKey("dirs.id"))
+	target_file_list = Column(String, nullable = True)
+	pending = Column(Boolean, nullable = False, default = True)
+	running = Column(Boolean, nullable = True, default = None)
+	complete = Column(Boolean, nullable = True, default = None)
+	OK = Column(Boolean, nullable = True, default = None)
+	error_message = Column(String, nullable = True, default = "")
+	result_OK = Column(Boolean, nullable = True, default = None) # True == result OK (as expexted), False == result unexpected
+	_report = Column(String, nullable = True, default = "")
+	_progress = Column(Float, nullable = True, default = 0.0)
 	
 
 	@property
 	def dict_for_json(self):
-		
-		return {}
+		return {"id": self.id, "task_type": self.task_type, "date_start": self.date_start, "date_end": self.date_end}
+	
+	
+	@property		
+	def state(self):
+		"""returns text description of current task state"""
+		# self._logger.debug("state: requested")
+		if self.date_start is None and not self.running:
+			return "PENDING"
+		if self.complete and self.OK and self.date_end is not None and not self.running:
+			return "COMPLETE OK"
+		if not self.complete and self.OK:
+			return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {secs_to_hrf(self.ETA_s)}, ETA: {datetime_to_str(self.ETA_datetime)})"
+		if not self.OK and self.running:
+			return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
+		if (not self.OK and not self.running) or (not self.OK and not self.complete):
+			return "COMPLETE FAILED"
+		return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
+	
+	
+	@property
+	def result_html(self):
+		if self.__report is not None or len(self.__report) != 0:
+			self._logger.debug("result_html: returning pre-generated report")
+			return self.__report.replace("\n", "<br>\n")
+		return self.generate_report().replace("\n", "<br>\n")
 
+
+	@property
+	def progress(self):
+		return self._progress
+	
+	
+	@property
+	def ETA_s(self):
+		"""Estimated Time Arrival in seconds"""
+		if self._prev_progress is None:
+			self._prev_progress = 0.0
+			self._prev_datetime = self.date_start
+		curr_progress = self._progress
+		curr_datetime = datetime.datetime.now()
+		progress_speed = (curr_progress - self._prev_progress) / (curr_datetime - self._prev_datetime).total_seconds() # % in 1 second
+		if progress_speed == 0.0:
+			eta = self._prev_ETA_S
+		else:
+			eta = (1.0 - curr_progress) / progress_speed
+			self._prev_ETA_S = eta
+		self._prev_progress = curr_progress
+		self._prev_datetime = curr_datetime
+		self._logger.debug(f"ETA: current eta: {eta} seconds")	
+		return eta
+	
+	
+	@property
+	def ETA_datetime(self):
+		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
+		self._logger.debug(f"ETA_datetime: will return {res}")
+		return res
+	
+	
+	@property
+	def descr(self):
+		return f"Task {self.task_type}"
+
+		
+	@property
+	def duration(self):
+		return (self.date_end - self.date_start).total_seconds() if self.date_start is not None and self.date_end is not None else 0.0
+
+	
+	
+	

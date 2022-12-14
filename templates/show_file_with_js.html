@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<!-- ver0.1 -->
+<!-- rewrite with JS -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+		<script type="text/javascript" src="{{ url_for('static', filename='actions.js') }}"></script>
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			File <br>
+			Full path: {{ file.full_path }}<br>
+			Name: {{ file._name }}<br>
+			Directory: {{ file.dir.full_path }}<br>
+			
+			<br>
+			Checksum: {{file.checksum}}<br>
+			Actual checksum: {{file.actual_checksum}}<br>
+			<br>
+			Copies: {% if duplicates|length == 0 %} NO COPIES {% endif %}<br>
+			{% for dup_file in duplicates %}
+			- [<a href="/show-file/{{ dup_file.id }}" title="show file">{{ dup_file.full_path }}</a>] - [<a href="/show-dir/{{ dup_file.dir.id }}" title="show dir">{{ dup_file.dir.full_path }}</a>] - {{ dup_file.checksum }} <br>
+			{% endfor %}
+			<br>
+			
+			<br>
+			<br>
+			<br>
+		</div>
+    
+    </body>
+</html>

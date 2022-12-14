@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<!-- ver0.2 -->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+		<script type="text/javascript" src="{{ url_for('static', filename='base_functions.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static', filename='edit_dir.js') }}"></script>
+	</head>
+	
+	<body> 
+		<div>
+			<br>
+			<br>
+			{% include 'header.jinja2.html' %}
+			<br>
+			<br>
+			Edit dir<br>
+			<br>
+			<label for="name">Full path:</label>
+			<input type="text" id="full_path" name="full_path" title="full_path" required value="{{ dir.full_path }}"><br>
+			
+			<label for="comment">Comment:</label><br>
+			<textarea name="comment" id="comment" title="Comment" cols="120" maxlength="1000" rows="20">{{ dir.comment | empty_on_None }}</textarea>
+			<br>
+			<br>
+			<label><input type="checkbox" name="is_etalon" id="is_etalon" value="is_etalon" {% if dir.is_etalon %}checked{% endif %}>Is etalon </label><br>
+			<label><input type="checkbox" name="enabled" id="enabled" value="enabled" {% if dir.enabled %}checked{% endif %}>Enabled </label><br>
+			<br>
+			<br>
+			
+			<input type="submit" value="Save dir" onclick="edit_dir();">
+		<br>
+		<br>
+		{% if is_saved %} DIR SAVED! <br>{% endif %}
+		</div>
+    
+    </body>
+</html>
