@@ -26,7 +26,7 @@
 			<br>
 			Copies: {% if duplicates|length == 0 %} NO COPIES {% endif %}<br>
 			{% for dup_file in duplicates %}
-			- [<a href="/show-file/{{ dup_file.id }}" title="show file">{{ dup_file.full_path }}</a>] - [<a href="/show-dir/{{ dup_file.dir.id }}" title="show dir">{{ dup_file.dir.full_path }}</a>] - {{ dup_file.checksum }} <br>
+			- [<a href="/ui/show-file/{{ dup_file.id }}" title="show file">{{ dup_file.full_path }}</a>] - [<a href="/ui/show-dir/{{ dup_file.dir.id }}" title="show dir">{{ dup_file.dir.full_path }}</a>] - {{ dup_file.checksum }} <br>
 			{% endfor %}
 			<br>
 			

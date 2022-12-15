@@ -13,12 +13,12 @@
 			<br>
 			<br>
 			Tasks:<br>
-			[<a href="/start-autostart" title="start autostart">start autostart</a>] [<a href="/stop-autostart" title="disable task autostart, current task will continue to run">stop autostart</a>]<br>
+			[<a href="/ui/start-autostart" title="start autostart">start autostart</a>] [<a href="/ui/stop-autostart" title="disable task autostart, current task will continue to run">stop autostart</a>] [<a href="/ui/delete-all-tasks" title="will delete all tasks except current">delete all tasks</a>]<br>
 			autostart: {{ autostart }}, running: {{ is_running }}, current task: {{ current_task }}<br>
 			current tasks: {{ current_task_list | length }}<br>
 			<br>
 			<br>
-			{% for t in all_tasks %}task {{ t.id }} {{ t._type }} - {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/show-task/{{ t.id }}" title="show this task">show</a>] [<a href="/save-task/{{ t.id }}" title="save task result">save</a>] [<a href="/delete-task/{{ t.id }}" title="delete this task">delete</a>] [<a href="/start-task/{{ t.id }}" title="start this task">start</a>]<br> {% endfor %}<br>
+			{% for t in all_tasks %}task {{ t.id }} {{ t._type }} - {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/ui/show-task/{{ t.id }}" title="show this task">show</a>] [<a href="/ui/save-task/{{ t.id }}" title="save task result">save</a>] [<a href="/api/delete-task?task_id={{ t.id }}" title="delete this task">delete</a>] [<a href="/ui/start-task/{{ t.id }}" title="start this task">start</a>]<br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

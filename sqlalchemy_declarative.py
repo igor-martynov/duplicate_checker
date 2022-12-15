@@ -14,7 +14,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
 
-from base import secs_to_hrf
+from base import secs_to_hrf, datetime_to_str
 
 
 DeclarativeBase = declarative_base()
@@ -41,11 +41,11 @@ class Directory(DeclarativeBase):
 	
 	@property
 	def url(self):
-		return f"/show-dir/{self.id}"
+		return f"/ui/show-dir/{self.id}"
 	
 	@property
 	def url_html_code(self):
-		return f"<a href='/show-dir/{self.id}' title='show dir'>{self.id} - {self.full_path}</a>"
+		return f"<a href='{self.url}' title='show dir'>{self.id} - {self.full_path}</a>"
 
 	
 	@property
@@ -75,15 +75,16 @@ class File(DeclarativeBase):
 	@property
 	def name(self):
 		return os.path.basename(self.full_path) if (self.full_path is not None and len(self.full_path) != 0) else None\
-
+		
+	
 	@property
 	def url(self):
-		return f"/show-file/{self.id}"
+		return f"/ui/show-file/{self.id}"
 	
 	
 	@property
 	def url_html_code(self):
-		return f"<a href='/show-file/{self.id}' title='show file'>{self.id} - {self.full_path}</a>"
+		return f"<a href='{self.url}' title='show file'>{self.id} - {self.full_path}</a>"
 	
 	
 	@property
@@ -110,8 +111,17 @@ class TaskRecord(DeclarativeBase):
 	OK = Column(Boolean, nullable = True, default = None)
 	error_message = Column(String, nullable = True, default = "")
 	result_OK = Column(Boolean, nullable = True, default = None) # True == result OK (as expexted), False == result unexpected
-	_report = Column(String, nullable = True, default = "")
-	_progress = Column(Float, nullable = True, default = 0.0)
+	report = Column(String, nullable = True, default = "")
+	progress = Column(Float, nullable = True, default = 0.0)
+	
+	
+	@property
+	def url(self):
+		return f"/ui/show-task/{self.id}"
+	
+	@property
+	def url_html_code(self):
+		return f"<a href='{self.url}' title='show task'>{self.id} - {self.descr}</a>"
 	
 
 	@property
@@ -138,42 +148,10 @@ class TaskRecord(DeclarativeBase):
 	
 	@property
 	def result_html(self):
-		if self.__report is not None or len(self.__report) != 0:
-			self._logger.debug("result_html: returning pre-generated report")
-			return self.__report.replace("\n", "<br>\n")
-		return self.generate_report().replace("\n", "<br>\n")
-
-
-	@property
-	def progress(self):
-		return self._progress
-	
-	
-	@property
-	def ETA_s(self):
-		"""Estimated Time Arrival in seconds"""
-		if self._prev_progress is None:
-			self._prev_progress = 0.0
-			self._prev_datetime = self.date_start
-		curr_progress = self._progress
-		curr_datetime = datetime.datetime.now()
-		progress_speed = (curr_progress - self._prev_progress) / (curr_datetime - self._prev_datetime).total_seconds() # % in 1 second
-		if progress_speed == 0.0:
-			eta = self._prev_ETA_S
-		else:
-			eta = (1.0 - curr_progress) / progress_speed
-			self._prev_ETA_S = eta
-		self._prev_progress = curr_progress
-		self._prev_datetime = curr_datetime
-		self._logger.debug(f"ETA: current eta: {eta} seconds")	
-		return eta
-	
-	
-	@property
-	def ETA_datetime(self):
-		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
-		self._logger.debug(f"ETA_datetime: will return {res}")
-		return res
+		if self.report is not None or len(self.report) != 0:
+			# self._logger.debug("result_html: returning pre-generated report")
+			return self.report.replace("\n", "<br>\n")
+		return self.generate_report().replace("\n", "<br>\n")	
 	
 	
 	@property
@@ -184,7 +162,32 @@ class TaskRecord(DeclarativeBase):
 	@property
 	def duration(self):
 		return (self.date_end - self.date_start).total_seconds() if self.date_start is not None and self.date_end is not None else 0.0
-
+		
 	
+	@property
+	def ETA_s(self):
+		"""Estimated Time Arrival in seconds"""
+		if self._prev_progress is None:
+			self._prev_progress = 0.0
+			self._prev_datetime = self.date_start
+		curr_progress = self.progress
+		curr_datetime = datetime.datetime.now()
+		progress_speed = (curr_progress - self._prev_progress) / (curr_datetime - self._prev_datetime).total_seconds() # % in 1 second
+		if progress_speed == 0.0:
+			eta = self._prev_ETA_S
+		else:
+			eta = (1.0 - curr_progress) / progress_speed
+			self._prev_ETA_S = eta
+		self._prev_progress = curr_progress
+		self._prev_datetime = curr_datetime
+		# self._logger.debug(f"ETA: current eta: {eta} seconds")
+		return eta
+	
+	
+	@property
+	def ETA_datetime(self):
+		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
+		# self._logger.debug(f"ETA_datetime: will return {res}")
+		return res
 	
 	

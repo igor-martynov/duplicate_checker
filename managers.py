@@ -215,7 +215,7 @@ class TaskManager(BaseManager):
 		
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 1.5
-		self.SLEEP_BETWEEN_CHECKS = 5
+		self.SLEEP_BETWEEN_CHECKS = 2
 	
 	
 	def get_full_list(self):
@@ -261,12 +261,12 @@ class TaskManager(BaseManager):
 	def start_task(self, task):
 		if task in self.current_tasks:
 			if task.running is None:
-				self._logger.info(f"start_task: starting task {task}")
+				self._logger.info(f"start_task: starting task {task} on request")
 				task.start()
 			else:
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
-			self._logger.error(f"start_task: could not find task {task} in current task list")
+			self._logger.error(f"start_task: could not find task {task} in current task list, ignoring")
 	
 	
 	def start_autostart_thread(self):
@@ -276,6 +276,7 @@ class TaskManager(BaseManager):
 			
 		def autostart_thread():
 			time.sleep(self.SLEEP_BETWEEN_CHECKS)
+			self._logger.debug(f"autostart_thread: will start with current_tasks: {self.current_tasks}")
 			while self.autostart_enabled is True:
 				for task in self.current_tasks:
 					if self.autostart_enabled is False:
@@ -285,6 +286,7 @@ class TaskManager(BaseManager):
 						pass
 					else:
 						task.start()
+						time.sleep(self.SLEEP_BETWEEN_CHECKS)
 						wait_till_task_completes(task)
 				time.sleep(self.SLEEP_BETWEEN_TASKS)
 			self._logger.info(f"start_autostart_thread: complete on user request")

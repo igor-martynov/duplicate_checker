@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-12-13
+# 2022-12-15
 
 
-__version__ = "0.9.7"
+__version__ = "0.9.8"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -260,8 +260,20 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return dirs_list
 		
 		
+		def get_task_objects_from_request(request):
+			tasks_list = []
+			task_ids_list = request.args.getlist("task_id")
+			self._logger.debug(f"get_task_objects_from_request: will check ids: {task_ids_list}")
+			for task_id in task_ids_list:
+				task_obj = self.task_manager.get_by_id(task_id)
+				if task_obj is not None:
+					tasks_list.append(task_obj)
+				else:
+					self._logger.error(f"get_task_objects_from_request: task with id {task_id} not found! ignoring")
+			return tasks_list
+		
+		
 		def get_dir_objects_from_request_compile(request):
-			
 			dirs_list = get_dir_objects_from_request(request)
 			path_to_new_dir = urllib.parse.unquote(request.args.get("new_dir"))
 			return dirs_list, path_to_new_dir
@@ -280,7 +292,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		def get_dir_dict_from_request(request):
-			
 			#id
 			_id = request.args.get("dir_id")
 			full_path = request.args.get("full_path")
@@ -297,13 +308,13 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return res
 		
 		
-		@web_app.route("/", methods = ["GET"])
+		@web_app.route("/ui/", methods = ["GET"])
 		def show_main():
 			if request.method == "GET":
 				return render_template("main_page.html", dirs = [], version = __version__, tasks = [], db_file = self.DB_FILE)
 		
 		
-		@web_app.route("/show-all-dirs", methods = ["GET"])
+		@web_app.route("/ui/show-all-dirs", methods = ["GET"])
 		def show_all_dirs():
 			if request.method == "GET":
 				dir_list = list(self.dir_manager.get_full_list())
@@ -311,13 +322,13 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("show_all_dirs.html", dirs = dir_list)
 		
 		
-		@web_app.route("/show-dir/<int:dir_id>")
+		@web_app.route("/ui/show-dir/<int:dir_id>")
 		def show_dir(dir_id):
 			if request.method == "GET":
 				return render_template("show_dir.html", dir = self.dir_manager.get_by_id(dir_id))
 		
 		
-		@web_app.route("/show-file/<int:file_id>", methods = ["GET"])
+		@web_app.route("/ui/show-file/<int:file_id>", methods = ["GET"])
 		def show_file(file_id):
 			if request.method == "GET":
 				found_file = self.file_manager.get_by_id(file_id)
@@ -336,7 +347,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("show_files.html", files = found_files)
 		
 		
-		@web_app.route("/add-dir", methods = ["GET", "POST"])
+		@web_app.route("/ui/add-dir", methods = ["GET", "POST"])
 		def add_directory():
 			if request.method == "GET":
 				return render_template("add_dir.html")
@@ -367,7 +378,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("add_dir.html", msg_text = f"dir(s) added")
 		
 		
-		
 		@web_app.route("/api/add-dirs", methods = ["GET"])
 		def add_dirs_api():
 			path_to_new_dir_list = get_path_to_new_dirs_from_request(request)
@@ -382,6 +392,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			self.task_manager.delete_files(target_file_list)
 			return render_template("blank_page.html", page_text = f"Deleted {len(target_file_list)} files - task added")
 		
+		
 		@web_app.route("/api/delete-dirs", methods = ["GET"])
 		def delete_dirs_api():
 			target_dir_list = get_dir_objects_from_request(request)
@@ -390,19 +401,19 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"Added tasks for deleting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
-		@web_app.route("/show-task/<int:task_id>", methods = ["GET", "POST"])
+		@web_app.route("/ui/show-task/<int:task_id>", methods = ["GET", "POST"])
 		def show_task(task_id):
 			self._logger.debug(f"show_task: will show task {task_id}")
 			try:
-				tasrget_task = self.task_manager.get_by_id(task_id)
-				self._logger.debug(f"show_task: will use task {tasrget_task}")
+				target_task = self.task_manager.get_by_id(task_id)
+				self._logger.debug(f"show_task: will use task {target_task}, length of result_html: {len(target_task.result_html)}")
 			except Exception as e:
 				self._logger.error(f"show_task: gor error {e}, traceback: {traceback.format_exc()}")
 				return render_template("blank_page.html", text = f"error {e}")
-			return render_template("show_task.html", task = tasrget_task)
+			return render_template("show_task.html", task = target_task)
 		
 		
-		@web_app.route("/show-all-tasks", methods = ["GET", "POST"])
+		@web_app.route("/ui/show-all-tasks", methods = ["GET", "POST"])
 		def show_all_tasks():
 			return render_template("show_all_tasks.html",
 				all_tasks = self.task_manager.get_full_list(),
@@ -412,7 +423,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				autostart = self.task_manager.autostart_enabled)
 		
 		
-		@web_app.route("/delete-task/<int:task_id>", methods = ["GET", "POST"])
+		@web_app.route("/ui/delete-task/<int:task_id>", methods = ["GET", "POST"])
 		def delete_task(task_id):
 			target_task = self.task_manager.get_by_id(task_id)
 			if request.method == "GET":
@@ -422,7 +433,29 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("blank_page.html", page_text = f"task {target_task} removed")
 		
 		
-		@web_app.route("/show-log", methods = ["GET"])
+		@web_app.route("/ui/delete-all-tasks", methods = ["GET"])
+		def delete_all_tasks():
+			all_tasks = self.task_manager.get_full_list()
+			for t in all_tasks:
+				if t not in self.task_manager.current_tasks:
+					self.task_manager.delete(t)
+			return render_template("show_all_tasks.html",
+				all_tasks = self.task_manager.get_full_list(),
+				current_task_list = self.task_manager.current_tasks,
+				current_task = self.task_manager.current_running_task,
+				is_running = self.task_manager.running,
+				autostart = self.task_manager.autostart_enabled)
+		
+		
+		web_app.route("/api/delete-task", methods = ["GET"])
+		def delete_task_api():
+			target_dir_list = get_task_objects_from_request()
+			for task in target_dir_list:
+				self.task_manager.delete(task)
+			return render_template("blank_page.html", page_text = f"tasks {target_dir_list} removed")
+		
+		
+		@web_app.route("/ui/show-log", methods = ["GET"])
 		def show_log():
 			with open(self.LOG_FILE, "r") as f:
 				log_text = f.read()
@@ -430,7 +463,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# all actions in one form
-		@web_app.route("/actions", methods = ["GET"])
+		@web_app.route("/ui/actions", methods = ["GET"])
 		def actions():
 			if request.method == "GET":
 				return render_template("actions.html", dirs = self.dir_manager.get_full_list())
@@ -467,7 +500,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"Added tasks FindCopiesTask for {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
-		@web_app.route("/shutdown-app", methods = ["GET", "POST"])
+		@web_app.route("/ui/shutdown-app", methods = ["GET", "POST"])
 		def shutdown_app():
 			if request.method == "GET":
 				if self.task_manager.running:
@@ -481,33 +514,33 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# start one task
-		@web_app.route("/start-task/<int:task_id>", methods = ["GET"])
+		@web_app.route("/ui/start-task/<int:task_id>", methods = ["GET"])
 		def start_task(task_id):
 			if request.method == "GET":
 				try:
 					self.task_manager.start_task(self.task_manager.get_by_id(task_id))
-					return redirect("/show-all-tasks")
+					return redirect("/ui/show-all-tasks")
 				except Exception as e:
 					self._logger.error(f"start_task: got error {e} while strting task num {task_id}. traceback: {traceback.format_exc()}")
 					return render_template("blank_page.html", page_text = f"ERROR could not start task number {task_id}, error: {e}")
 		
 		
 		# start autostart thread
-		@web_app.route("/start-autostart", methods = ["GET"])
+		@web_app.route("/ui/start-autostart", methods = ["GET"])
 		def start_autostart():
 			if request.method == "GET":
 				self.task_manager.start_autostart_thread()
-				return redirect("/show-all-tasks")
+				return redirect("/ui/show-all-tasks")
 		
 		
-		@web_app.route("/stop-autostart", methods = ["GET"])
+		@web_app.route("/ui/stop-autostart", methods = ["GET"])
 		def stop_autostart():
 			if request.method == "GET":
 				self.task_manager.autostart_enabled = False
-				return redirect("/show-all-tasks")
+				return redirect("/ui/show-all-tasks")
 		
 		
-		@web_app.route("/backup-db", methods = ["GET"])
+		@web_app.route("/ui/backup-db", methods = ["GET"])
 		def backup_DB():
 			"""create copy of DB file with current date as filename suffix"""
 			if request.method == "GET":
@@ -519,7 +552,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# TODO: under heavy development
-		@web_app.route("/edit-dir/<int:dir_id>", methods = ["GET", "POST"])
+		@web_app.route("/ui/edit-dir/<int:dir_id>", methods = ["GET", "POST"])
 		def edit_dir(dir_id):
 			target_dir = self.dir_manager.get_by_id(dir_id)
 			if target_dir is None:
@@ -556,7 +589,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"Added tasks SplitDirTask for splitting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
 		
 		
-		@web_app.route("/execute-sql-query", methods = ["GET", "POST"])
+		@web_app.route("/ui/execute-sql-query", methods = ["GET", "POST"])
 		def execute_sql_query():
 			if request.method == "GET":
 				return render_template("execute_sql_query.html")
@@ -577,7 +610,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"New task CompileDirTask for new_dir {path_to_new_dir}, input dir list: {[idir.full_path for idir in input_dir_list]} created")
 		
 		# TODO: remove this
-		@web_app.route("/save-task/<int:task_id>", methods = ["GET", "POST"])
+		@web_app.route("/ui/save-task/<int:task_id>", methods = ["GET", "POST"])
 		def save_task(task_id):
 			if request.method == "GET":
 				self.task_manager.save_task_result(self.task_manager.tasks[task_id])

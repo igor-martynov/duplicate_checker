@@ -33,7 +33,7 @@
 			
 			<br>
 			<br>
-			{% for f in dir.files %} {{f.full_path}} - [<a href="/api/get-files-by-checksum?checksum={{ f.checksum }}" title="find with the same checksum">{{ f.checksum }}</a>] [<a href="/show-file/{{f.id}}" title="show">show</a>] [<a href="/api/delete-file?file_id={{f.id}}" title="delete">delete</a>] <br>  {% endfor %}<br>
+			{% for f in dir.files %} {{f.full_path}} - [<a href="/api/get-files-by-checksum?checksum={{ f.checksum }}" title="find with the same checksum">{{ f.checksum }}</a>] [<a href="/ui/show-file/{{f.id}}" title="show">show</a>] [<a href="/api/delete-file?file_id={{f.id}}" title="delete">delete</a>] <br>  {% endfor %}<br>
 			<br>
 			<br>
 			<br>

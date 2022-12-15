@@ -40,14 +40,15 @@ class BaseTask(TaskRecord):
 		self._type = self.__class__.__name__
 		self.date_start = None
 		self.date_end = None
-		
-		# self._progress = 0.0
 		self._prev_progress = None
 		self._prev_datetime = None
 		self._prev_ETA_S = 0
 		
 		self.save_results = True
 		self.__result_html_complete = False
+	
+	
+
 	
 	
 	def run(self):
@@ -77,13 +78,13 @@ class BaseTask(TaskRecord):
 		self.complete = False
 		self.OK = True
 		self.pending = False
-		self._progress = 0.0
+		self.progress = 0.0
 	
 	
 	def mark_task_end(self):
 		self.date_end = datetime.datetime.now()
 		self.running = False
-		self._progress = 1.0
+		self.progress = 1.0
 	
 	
 	def mark_task_OK(self):
@@ -102,6 +103,10 @@ class BaseTask(TaskRecord):
 		raise NotImplemented
 	
 	
+	def save_task(self):
+		self._task_manager.db_commit()
+	
+	
 	def mark_result_OK(self):
 		self.result_OK = True
 	
@@ -117,8 +122,8 @@ class BaseTask(TaskRecord):
 	
 	def generate_report(self):
 		self._logger.debug("generate_report: default generate_report called, normally this should not happen")
-		self.__report = f"Task: {self.descr}, status: {self.state}"
-		return self.__report
+		self.report = f"Task: {self.descr}, status: {self.state}"
+		return self.report
 	
 	
 
@@ -144,7 +149,7 @@ class AddDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for {self.target_dir_path}"
+		return f"Task {self._type} for {self.target_dir_path}"
 	
 	
 	def get_dir_listing(self, path_to_dir):
@@ -186,7 +191,7 @@ class AddDirTask(BaseTask):
 			self._logger.debug(f"_wait_till_complete: waiting for pool, complete: {complete} of {dict_length}...")
 			time.sleep(self._sleep_delay)
 			complete = result._index
-			self._progress = complete / dict_length
+			self.progress = complete / dict_length
 		self._logger.debug(f"_wait_till_complete: pool results ready: {result}")
 		return
 	
@@ -200,6 +205,7 @@ class AddDirTask(BaseTask):
 		new_dir.files = files
 		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
 		self.dir = new_dir
+		self.target_dir_id = self.dir.id
 		return new_dir
 	
 	
@@ -225,30 +231,30 @@ class AddDirTask(BaseTask):
 			if self.save_results:
 				self.save()	
 			else:
-				self._logger.info("run: not saving results because save == False")	
+				self._logger.info("run: not saving results because save set to False")	
 			self.mark_task_OK()
 			self.mark_result_OK()
 			self._logger.debug("run: complete")
 			self.mark_task_end()
+			self.generate_report()
+			self.save_task()
 			return new_dir
 		except Exception as e:
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
 			self.mark_task_failure()
 			self.mark_result_failure()
 			self.mark_task_end()
-		# TODO: should call genetate_report here
-		
+			self.save_task()
+		# TODO: should call genetatereport here
 	
-	@property
-	def result_html(self):
-		if self.dir is None:
-			return f"full_path: {self.target_dir_path}<br>status: {self.state}, result is not ready yet."
-		else:
-			result_str = f"Dir: {self.dir.full_path}, total files: {len(self.dir.files)}" + "<br>\n<br>\n"
-			for f in self.dir.files:
-				result_str += f"f: {f.full_path} - {f.checksum}" + "<br>\n"
-			result_str += f"Task took: {secs_to_hrf(self.duration)}"
-			return result_str
+	
+	def generate_report(self):
+		self.report = f"AddDirTask for {self.target_dir_path}, status: {self.state}" + "\n"
+		self.report += f"{len(self.dir.files)} files added:" + "\n"
+		for f in self.dir.files:
+			self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
+		self.report += "\n\n" + f"Task took: {self.duration}s"
+		return self.report
 
 
 
@@ -273,7 +279,7 @@ class CompareDirsTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for {self.dir_a.full_path} and {self.dir_b.full_path}"
+		return f"Task {self._type} for {self.dir_a.full_path} and {self.dir_b.full_path}"
 	
 	
 	@property
@@ -296,7 +302,7 @@ class CompareDirsTask(BaseTask):
 			len_all_files = len_dir_a_files + len_dir_b_files
 			
 			for fa in self.dir_a.files:
-				self._progress += 0.25 / len_all_files
+				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fa.full_path} - {fa.checksum}")
 				candidates = self._file_manager.get_by_checksum(fa.checksum, idir = self.dir_b)
 				tmp_c_str = "input_checksum is " + fa.checksum + "; "
@@ -315,7 +321,7 @@ class CompareDirsTask(BaseTask):
 							self.files_on_both.append(c)
 							self.files_b_on_a.append(c)
 			for fb in self.dir_b.files:
-				self._progress += 0.25 / len_all_files
+				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fb.full_path} - {fb.checksum}")
 				candidates = self._file_manager.get_by_checksum(fb.checksum, idir = self.dir_a)
 				# fb_has_copy = False
@@ -336,13 +342,13 @@ class CompareDirsTask(BaseTask):
 							self.files_a_on_b.append(c)
 			self._logger.debug("run: checking files only on A and B")
 			for fa in self.dir_a.files:
-				self._progress += 0.25 / len_all_files
+				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for only on A and B file {fa.full_path} - {fa.checksum}")
 				if fa not in self.files_on_both:
 					self._logger.debug(f"run: adding to files_only_on_a: {fa.full_path}")
 					self.files_only_on_a.append(fa)
 			for fb in self.dir_b.files:
-				self._progress += 0.25 / len_all_files
+				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for only on A and B file {fb.full_path} - {fb.checksum}")
 				if fb not in self.files_on_both:
 					self._logger.debug(f"run: adding to files_only_on_b: {fb.full_path}")
@@ -356,6 +362,7 @@ class CompareDirsTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 	
 	
 	def check_dirs_equal(self):
@@ -373,47 +380,47 @@ class CompareDirsTask(BaseTask):
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
-		self.__report = ""
-		self.__report += f"Directory comparation status: {self.state}" + ".\n"
-		self.__report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
-		self.__report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
-		self.__report += "\n\n"
+		self.report = f"{self.descr}" + "\n"
+		self.report += f"Directory comparation status: {self.state}" + ".\n"
+		self.report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
+		self.report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
+		self.report += "\n\n"
 		if self.dirs_are_equal:
-			self.__report += "DIRS ARE EQUAL.\n\n"
+			self.report += "DIRS ARE EQUAL.\n\n"
 		else:
-			self.__report += "Dirs are not equal.\n\n"
+			self.report += "Dirs are not equal.\n\n"
 			if self.a_is_subset_of_b:
-				self.__report += "A is subset of B.\n\n"
+				self.report += "A is subset of B.\n\n"
 			if self.b_is_subset_of_a:
-				self.__report += "B is subset of A.\n\n"
+				self.report += "B is subset of A.\n\n"
 			
-		self.__report += f"Files on both A and B: {len(self.files_on_both)}" + "\n"
+		self.report += f"Files on both A and B: {len(self.files_on_both)}" + "\n"
 		# for f in self.files_on_both:
-		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		# self.__report += "\n\n"
-		self.__report += f"Files of A that exist in B: {len(self.files_a_on_b)}" + "\n"
+		# 	self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		# self.report += "\n\n"
+		self.report += f"Files of A that exist in B: {len(self.files_a_on_b)}" + "\n"
 		# for f in self.files_a_on_b:
-		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		# self.__report += "\n\n"
-		self.__report += f"Files of B that exist in A: {len(self.files_b_on_a)}" + "\n"
+		# 	self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		# self.report += "\n\n"
+		self.report += f"Files of B that exist in A: {len(self.files_b_on_a)}" + "\n"
 		# for f in self.files_b_on_a:
-		# 	self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
-		self.__report += f"Files that exist only in A: {len(self.files_only_on_a)}" + "\n"
+		# 	self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		self.report += "\n\n"
+		self.report += f"Files that exist only in A: {len(self.files_only_on_a)}" + "\n"
 		for f in self.files_only_on_a:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
-		self.__report += f"Files that exist only in B: {len(self.files_only_on_b)}" + "\n"
+			self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		self.report += "\n\n"
+		self.report += f"Files that exist only in B: {len(self.files_only_on_b)}" + "\n"
 		for f in self.files_only_on_b:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
-		self.__report += f"Files with equal names but different checsums: {len(self.equal_names_diff_checsums)}" + "\n"
+			self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		self.report += "\n\n"
+		self.report += f"Files with equal names but different checsums: {len(self.equal_names_diff_checsums)}" + "\n"
 		for f in self.equal_names_diff_checsums:
-			self.__report += f"f: {f.full_path} - {f.checksum}" + "\n"
-		self.__report += "\n\n"
-		self.__report += f"Task took: {self.duration}s"
-		self.__report += "\n\n"
-		return self.__report
+			self.report += f"f: {f.full_path} - {f.checksum}" + "\n"
+		self.report += "\n\n"
+		self.report += f"Task took: {self.duration}s"
+		self.report += "\n\n"
+		return self.report
 	
 	
 	
@@ -423,6 +430,7 @@ class FindCopiesTask(BaseTask):
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(FindCopiesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
+		self.target_dir_id = target_dir.id
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
 		self.copies_dict = {} # key: dir that contains copy, value: 
 		self.no_copies_list = [] # list of files without copies
@@ -432,7 +440,7 @@ class FindCopiesTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for {self.dir.full_path}"
+		return f"Task {self._type} for {self.dir.full_path}"
 	
 	
 	def run(self):
@@ -446,17 +454,17 @@ class FindCopiesTask(BaseTask):
 		try:
 			progress_increase = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
-				self._logger.debug(f"run: checking file {f.full_path}... progress: {self._progress}")
+				self._logger.debug(f"run: checking file {f.full_path}... progress: {self.progress}")
 				candidates = self._file_manager.find_copies(f)
-				self._progress += progress_increase
+				self.progress += progress_increase
 				for c in candidates:
 					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
-						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self._progress}")
+						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self.progress}")
 						continue
 					if f.name == c.name:
 						self.file_dict[f].append(c)
 					else:
-						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add. progress: {self._progress}")
+						self._logger.info(f"run: should add file {c.full_path} as copy, but it has different name. original name is {f.name}. So did not add. progress: {self.progress}")
 			self._logger.debug("run: file checking complete, file_dict filled.")
 			self._logger.debug("run: run complete.")
 			self.mark_task_OK()
@@ -465,6 +473,7 @@ class FindCopiesTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 	
 	
 	def get_copies_stats(self):
@@ -487,18 +496,19 @@ class FindCopiesTask(BaseTask):
 	# @cProfile_wrapper
 	def generate_report(self):
 		self._logger.debug("generate_report: starting")
-		self.__report = "\n\nStatus: " + str(self.state) + "\n"
-		self.__report += "\nDir: " + self.dir.full_path + "\n"
-		self.__report += f"({len(self.dir.files)} files)" + "\n\n"
+		self.report = f"{self.descr}" + "\n"
+		self.report += "\n\nStatus: " + str(self.state) + "\n"
+		self.report += "\nDir: " + self.dir.full_path + "\n"
+		self.report += f"({len(self.dir.files)} files)" + "\n\n"
 		self.get_copies_stats()
 		self._logger.debug("generate_report: stage 1 complete")
-		self.__report += f"files without copies: {len(self.no_copies_list)}" + "\n"
+		self.report += f"files without copies: {len(self.no_copies_list)}" + "\n"
 		for f in self.no_copies_list:
-			self.__report += f.full_path + "\n"
-		self.__report += "\n\n"
+			self.report += f.full_path + "\n"
+		self.report += "\n\n"
 		
 		self._logger.debug("generate_report: stage 2 complete")
-		self.__report += "Copies:\n"
+		self.report += "Copies:\n"
 		
 		for d in self.copies_dict.keys():
 			# will generate sets for readability 
@@ -511,25 +521,25 @@ class FindCopiesTask(BaseTask):
 			# then use these sets
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
 				self.dir_has_full_copy = True
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
 				self.dir_has_full_copy = True
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif len(set_checksum_origin.intersection(set_checksum_copy_dir)) != 0 and len(d.files) != len(self.dir.files):
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			else:
-				self.__report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- ERROR! -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- ERROR! -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 		
-		self.__report += "\n\n"
+		self.report += "\n\n"
 		self._logger.debug("generate_report: stage 3 complete")
-		self.__report += "All files:\n"
+		self.report += "All files:\n"
 		for k, v in self.file_dict.items():
-			self.__report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
-		self.__report += "\n\n" + f"Task took: {self.duration}s"
-		self._logger.debug(f"generate_report: report length: {len(self.__report)}")
-		return self.__report.replace("\n", "<br>\n")
+			self.report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
+		self.report += "\n\n" + f"Task took: {self.duration}s"
+		self._logger.debug(f"generate_report: report length: {len(self.report)}")
+		return self.report.replace("\n", "<br>\n")
 		
 
 # TODO: testing
@@ -539,17 +549,31 @@ class CheckDirTask(BaseTask):
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
 		super(CheckDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
+		self.target_dir_id = target_dir.id
 		self.new_dir = None
 		self.subtask_add = None
 		self.subtask_compare = None
 		self.checksum_algorithm = checksum_algorithm
-		
+	
+	def mark_task_start(self):
+		self.date_start = datetime.datetime.now()
+		self.running = True
+		self.complete = False
+		self.OK = True
+		self.pending = False
+	
+	
+	def mark_task_end(self):
+		self.date_end = datetime.datetime.now()
+		self.running = False
+	
 	
 	def init_subtask_add(self):
 		self.subtask_add = AddDirTask(self.dir.full_path,
 			logger = self._logger.getChild("SubTask_AddDirTask_"),
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
+			task_manager = self._task_manager,
 			is_etalon = self.dir.is_etalon,
 			checksum_algorithm = self.checksum_algorithm)
 		self.subtask_add.save_results = False
@@ -561,13 +585,19 @@ class CheckDirTask(BaseTask):
 			self.subtask_add.dir,
 			logger = self._logger.getChild("SubTask_CompareDirsTask_"),
 			file_manager = self._file_manager,
-			dir_manager = self._dir_manager)
+			dir_manager = self._dir_manager,
+			task_manager = self._task_manager)
 		self._logger.debug(f"init_subtask_compare: adding subtask CompareDirsTask, dir A: {self.dir}, dir B: {self.subtask_add.dir}")
 	
 	
 	def compare_dirs_old_and_new(self):
 		self._logger.debug(f"compare_dirs_old_and_new: will create subtask CompareDirsTask for dir comparison: {self.dir} and {self.subtask_add.dir}")
-		self.subtask_compare.run()
+		try:
+			self.subtask_compare.run()
+		except Exception as e:
+			self._logger.error(f"compare_dirs_old_and_new: got error {e}, traceback: {traceback.format_exc()}")
+			self.mark_task_failure()
+			self.mark_result_failure()
 		self._logger.debug("compare_dirs_old_and_new: comparation complete")
 		if self.subtask_compare.result_OK:
 			self._logger.info("compare_dirs_old_and_new: dirs OLD and NEW are equal")
@@ -580,7 +610,14 @@ class CheckDirTask(BaseTask):
 
 	
 	def add_dir(self):
-		return self.subtask_add.run()
+		
+		try:
+			res = self.subtask_add.run()
+			return res
+		except Exception as e:
+			self._logger.error(f"add_dir: got error: {e}, traceback: {traceback.format_exc()}")
+			self.mark_task_failure()
+			self.mark_result_failure()
 	
 	
 	def run(self):
@@ -590,6 +627,8 @@ class CheckDirTask(BaseTask):
 			self.init_subtask_add()
 			self._logger.debug(f"run: will get real checksums for dir...")
 			self.new_dir = self.add_dir()
+			if self.new_dir is None:
+				pass # should return here
 			self.init_subtask_compare()
 			self._logger.debug(f"run: got real checksums. will compare real dir and dir from db...")
 			self.compare_dirs_old_and_new() # marking result within this method
@@ -600,35 +639,36 @@ class CheckDirTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for dir {self.dir.full_path}"
+		return f"Task {self._type} for dir {self.dir.full_path}"
 	
 	
 	def generate_report(self):
-		self.__report = "CheckDirTask result:\n"
-		self.__report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
-		self.__report += f"Actual dir: {self.new_dir.full_path}, {len(self.new_dir.files)} files" + "\n"
+		self.report = f"{self.descr}" + "\n"
+		self.report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
+		self.report += f"Actual dir: {self.subtask_add.dir.full_path}, {len(self.subtask_add.dir.files)} files" + "\n"
 		if self.subtask_compare.dirs_are_equal:
-			self.__report += "Dir is OK, all checksums are actual\n"
+			self.report += "Dir is OK, all checksums are actual\n"
 		else:
-			self.__report += "DIR HAS CHENGED! Please check subtask CompareDirsTask.\n"
-		self.__report += "\n"
-		self.__report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
-		self.__report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
-		self.__report += f"Task took: {self.duration}s"
-		self._logger.debug(f"generate_report: report ready, length: {len(self.__report)}")
-		return self.__report
+			self.report += "DIR HAS CHENGED! Please check subtask CompareDirsTask.\n"
+		self.report += "\n"
+		self.report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
+		self.report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
+		self.report += f"Task took: {self.duration}s"
+		self._logger.debug(f"generate_report: report ready, length: {len(self.report)}")
+		return self.report
 
 	
 	@property
 	def progress(self):
 		if self.subtask_add is not None and self.subtask_compare is not None:
-			return (self.subtask_add._progress + self.subtask_compare._progress) / 2
+			return (self.subtask_add.progress + self.subtask_compare.progress) / 2
 		elif self.subtask_add is not None and self.subtask_compare is None:
-			return self.subtask_add._progress / 2
+			return self.subtask_add.progress / 2
 		else:
 			return 0.0
 	
@@ -640,13 +680,14 @@ class SplitDirTask(BaseTask):
 	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir_obj = target_dir
+		self.target_dir_id = target_dir.id
 		self.subdirs = []
 		self.subdir_path_dict = dict()
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for dir {self.dir_obj.full_path}"
+		return f"Task {self._type} for dir {self.dir_obj.full_path}"
 	
 	
 	def get_dict_of_subdirs(self):
@@ -686,7 +727,7 @@ class SplitDirTask(BaseTask):
 				pass
 			new_dir.files = new_dir_files
 			self.subdirs.append(new_dir)
-			self._progress += progress_increment
+			self.progress += progress_increment
 	
 	
 	def save(self):
@@ -707,13 +748,13 @@ class SplitDirTask(BaseTask):
 	
 	
 	def generate_report(self):
-		self.__report = ""
-		self.__report += f"Directory {self.dir_obj.full_path} split status: {self.state}" + ".\n\n"
-		self.__report += "Added dirs:"
+		self.report = f"{self.descr}" + "\n"
+		self.report += f"Directory {self.dir_obj.full_path} split status: {self.state}" + ".\n\n"
+		self.report += "Added dirs:"
 		for d in self.subdirs:
-			self.__report += f"Dir {d.full_path} ({len(d.files)} files)"
-		self.__report += "\n" + f"Task took: {secs_to_hrf(self.duration)}"
-		return self.__report
+			self.report += f"Dir {d.full_path} ({len(d.files)} files)"
+		self.report += "\n" + f"Task took: {secs_to_hrf(self.duration)}"
+		return self.report
 	
 	
 	def run(self):
@@ -727,6 +768,7 @@ class SplitDirTask(BaseTask):
 		else:
 			self.mark_result_failure()
 		self.generate_report()
+		self.save_task()
 		
 
 
@@ -742,6 +784,7 @@ class CompileDirTask(BaseTask):
 		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}")
 		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
 		self.unique_files = []
+		self.renamed_files = []
 		self.dry_run = False
 		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p"
 		self.MKDIR_COMMAND = "/usr/bin/mkdir -p" if os.path.isfile("/usr/bin/mkdir") else "/bin/mkdir -p"
@@ -750,14 +793,13 @@ class CompileDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for new dir {self.path_to_new_dir}"
+		return f"Task {self._type} for new dir {self.path_to_new_dir}"
 	
 	
 	def get_unique_file_list(self):
 		unique_checksums = set([f.checksum for f in self.all_files_list])
 		self._logger.info(f"get_unique_file_list: got {len(unique_checksums)} unique_checksums")
 		self._logger.debug(f"get_unique_file_list: unique_checksums are: {unique_checksums}")
-		
 		# algo take 1 - simply by checksums
 		for uc in unique_checksums:
 			for file in self._file_manager.get_by_checksum(uc):
@@ -795,6 +837,7 @@ class CompileDirTask(BaseTask):
 				new_name = f.name + f.checksum[-6:]
 				self._logger.info(f"create_copy_commands: will use new name {new_name} for file {f.full_path}")
 				cmd_args_dict[new_name] = f
+				self.renamed_files.append((f, new_name))
 			else:
 				cmd_args_dict[f.name] = f
 				self._logger.debug(f"create_copy_commands: will copy {f.full_path} without renaming")
@@ -814,7 +857,7 @@ class CompileDirTask(BaseTask):
 			try:
 				run_command(cmd)
 				self._logger.debug(f"run_commands: executing command: {cmd}")
-				self._progress += progress_increment
+				self.progress += progress_increment
 			except Exception as e:
 				self._logger.error(f"run_commands: got error white executing command: {cmd}. Error: {e}, traceback: {traceback.format_exc()}")
 				self._logger.info("run_commands: stoping command execution due to error.")
@@ -823,8 +866,13 @@ class CompileDirTask(BaseTask):
 	
 	
 	def generate_report(self):
-		self.__report = f"CompileDirTask for new dir {self.path_to_new_dir}"
-		return self.__report
+		self.report = f"{self.descr}" + "\n"
+		self.report += f"Total unique files: {len(self.unique_files)}" + "\n"
+		self.report += f"Total renamed_files: {len(self.renamed_files)}"  + "\n"
+		for ft in self.renamed_files:
+			self.report += f"{ft[0]} - {ft[1]}" + "\n"
+		self.report += "\n" + f"Task took: {self.duration}"
+		return self.report
 	
 	
 	def run(self):
@@ -857,6 +905,7 @@ class CompileDirTask(BaseTask):
 			return
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 
 
 
@@ -871,7 +920,7 @@ class DeleteDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type} for dir {self.target_dir_path}"
+		return f"Task {self._type} for dir {self.target_dir_path}"
 		
 	
 	# @cProfile_wrapper
@@ -883,7 +932,7 @@ class DeleteDirTask(BaseTask):
 			progress_increment = 1 / num_files if num_files != 0 else 1.0
 			for f in self.target_dir.files:
 				self._file_manager.delete(f)
-				self._progress += progress_increment
+				self.progress += progress_increment
 			self._dir_manager.delete(self.target_dir)
 			self._logger.debug(f"run: directory deleted")
 			self.mark_result_OK()
@@ -894,6 +943,7 @@ class DeleteDirTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 
 
 
@@ -903,10 +953,11 @@ class DeleteFilesTask(BaseTask):
 	def __init__(self, file_list, logger = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(DeleteFilesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.files_to_delete = file_list
+		self.target_file_list = ",".join([f.full_path for f in file_list])
 	
 	
 	def descr(self):
-		return f"Task {self.task_type} for {len(self.files_to_delete)} files"
+		return f"Task {self._type} for {len(self.files_to_delete)} files"
 	
 	
 	def run(self):
@@ -923,10 +974,12 @@ class DeleteFilesTask(BaseTask):
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
 		self.mark_task_end()
 		self.generate_report()
+		self.save_task()
 	
 	
 	def generate_report(self):
-		self.__report = "DeleteFilesTask result:\n Deleted files:\n"
+		self.report = f"{self.descr}" + "\n"
+		self.report += "DeleteFilesTask result:\n Deleted files:\n"
 		for f in self.files_to_delete:
-			self.__report += f"{f.id} - {f.full_path} - {f.checksum}"
+			self.report += f"{f.id} - {f.full_path} - {f.checksum}" + "\n"
 		
