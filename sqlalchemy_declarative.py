@@ -156,7 +156,8 @@ class TaskRecord(DeclarativeBase):
 	
 	@property
 	def descr(self):
-		return f"Task {self.task_type}"
+		# return f"Task {self._type}"
+		return f"Task {self.__class__.__name__}"
 
 		
 	@property

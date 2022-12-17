@@ -48,9 +48,6 @@ class BaseTask(TaskRecord):
 		self.__result_html_complete = False
 	
 	
-
-	
-	
 	def run(self):
 		"""main task method, sync, will return when result is ready"""
 		raise NotImplemented
@@ -123,6 +120,7 @@ class BaseTask(TaskRecord):
 	def generate_report(self):
 		self._logger.debug("generate_report: default generate_report called, normally this should not happen")
 		self.report = f"Task: {self.descr}, status: {self.state}"
+		self._logger.debug(f"generate_report: report ready")
 		return self.report
 	
 	
@@ -254,6 +252,7 @@ class AddDirTask(BaseTask):
 		for f in self.dir.files:
 			self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
 		self.report += "\n\n" + f"Task took: {self.duration}s"
+		self._logger.debug(f"generate_report: report ready")
 		return self.report
 
 
@@ -420,6 +419,7 @@ class CompareDirsTask(BaseTask):
 		self.report += "\n\n"
 		self.report += f"Task took: {self.duration}s"
 		self.report += "\n\n"
+		self._logger.debug(f"generate_report: report ready")
 		return self.report
 	
 	
@@ -451,6 +451,13 @@ class FindCopiesTask(BaseTask):
 			self.file_dict[f] = []
 		self._logger.debug("run: file_dict pre-created, checking files...")
 		total_files = len(self.dir.files)
+		if total_files == 0:
+			self._logger.info(f"run: got dir with zero files, doing nothing.")
+			self.mark_result_failure()
+			self.mark_task_OK()
+			self.generate_report()
+			self.save_task()
+			return
 		try:
 			progress_increase = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
@@ -538,7 +545,7 @@ class FindCopiesTask(BaseTask):
 		for k, v in self.file_dict.items():
 			self.report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
 		self.report += "\n\n" + f"Task took: {self.duration}s"
-		self._logger.debug(f"generate_report: report length: {len(self.report)}")
+		self._logger.debug(f"generate_report: report ready, length: {len(self.report)}")
 		return self.report.replace("\n", "<br>\n")
 		
 
@@ -654,7 +661,7 @@ class CheckDirTask(BaseTask):
 		if self.subtask_compare.dirs_are_equal:
 			self.report += "Dir is OK, all checksums are actual\n"
 		else:
-			self.report += "DIR HAS CHENGED! Please check subtask CompareDirsTask.\n"
+			self.report += "DIR HAS CHANGED! Please check result of subtask CompareDirsTask.\n"
 		self.report += "\n"
 		self.report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		self.report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
@@ -754,6 +761,7 @@ class SplitDirTask(BaseTask):
 		for d in self.subdirs:
 			self.report += f"Dir {d.full_path} ({len(d.files)} files)"
 		self.report += "\n" + f"Task took: {secs_to_hrf(self.duration)}"
+		self._logger.debug(f"generate_report: report ready")
 		return self.report
 	
 	
@@ -872,6 +880,7 @@ class CompileDirTask(BaseTask):
 		for ft in self.renamed_files:
 			self.report += f"{ft[0]} - {ft[1]}" + "\n"
 		self.report += "\n" + f"Task took: {self.duration}"
+		self._logger.debug(f"generate_report: report ready")
 		return self.report
 	
 	
@@ -982,4 +991,5 @@ class DeleteFilesTask(BaseTask):
 		self.report += "DeleteFilesTask result:\n Deleted files:\n"
 		for f in self.files_to_delete:
 			self.report += f"{f.id} - {f.full_path} - {f.checksum}" + "\n"
+		self._logger.debug(f"generate_report: report ready")
 		

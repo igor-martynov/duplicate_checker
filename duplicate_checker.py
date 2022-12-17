@@ -36,7 +36,7 @@ from flask import Flask, request, Response, render_template, redirect, url_for, 
 
 from base import *
 from managers import *
-
+from flask_functions import *
 
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
 from sqlalchemy import create_engine, select, Index, inspect
@@ -221,91 +221,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# web_app.wsgi_app = ProfilerMiddleware(web_app.wsgi_app)
 		
 		
-		def get_path_to_new_dirs_from_request(request):
-			path_to_new_dirs_list = [normalize_path_to_dir(d) for d in request.args.getlist("path_to_new_dir")]
-			return path_to_new_dirs_list
-		
-		
-		def get_full_path_from_request(request):
-			return normalize_path_to_dir(request.args.get("full_path"))
-		
-		
-		def get_is_etalon_from_request(request):
-			return True if request.args.get("is_etalon") == "1" else False
-		
-		
-		def get_enabled_from_request(request):
-			return True if request.args.get("enabled") == "1" else False
-		
-		def get_comment_from_request(request):
-			return request.args.get("comment")
-		
-		
-		def get_add_options_for_new_dirs_from_request(request):
-			is_etalon = True if request.args.get("is_etalon") == "1" else False
-			add_subdirs = True if request.args.get("add_subdirs") == "1" else False
-			return (is_etalon, add_subdirs)
-		
-		
-		def get_dir_objects_from_request(request):
-			dirs_list = []
-			dir_ids_list = request.args.getlist("dir_id")
-			self._logger.debug(f"get_dir_objects_from_request: will check ids: {dir_ids_list}")
-			for dir_id in dir_ids_list:
-				dir_obj = self.dir_manager.get_by_id(dir_id)
-				if dir_obj is not None:
-					dirs_list.append(dir_obj)
-				else:
-					self._logger.error(f"get_dir_objects_from_request: dir with id {file_id} does not exist! ignoring.")
-			return dirs_list
-		
-		
-		def get_task_objects_from_request(request):
-			tasks_list = []
-			task_ids_list = request.args.getlist("task_id")
-			self._logger.debug(f"get_task_objects_from_request: will check ids: {task_ids_list}")
-			for task_id in task_ids_list:
-				task_obj = self.task_manager.get_by_id(task_id)
-				if task_obj is not None:
-					tasks_list.append(task_obj)
-				else:
-					self._logger.error(f"get_task_objects_from_request: task with id {task_id} not found! ignoring")
-			return tasks_list
-		
-		
-		def get_dir_objects_from_request_compile(request):
-			dirs_list = get_dir_objects_from_request(request)
-			path_to_new_dir = urllib.parse.unquote(request.args.get("new_dir"))
-			return dirs_list, path_to_new_dir
-		
-		
-		def get_file_objects_from_request(request):
-			files_list = []
-			file_ids_list = request.args.getlist("file_id")
-			for file_id in file_ids_list:
-				file_obj = self.file_manager.get_by_id(file_id)
-				if file_obj is not None:
-					files_list.append(file_obj)
-				else:
-					self._logger.error(f"get_file_objects_from_request: file with id {file_id} does not exist! ignoring.")
-			return files_list
-		
-		
-		def get_dir_dict_from_request(request):
-			#id
-			_id = request.args.get("dir_id")
-			full_path = request.args.get("full_path")
-			is_etalon = True if request.args.get("is_etalon") == "1" else False
-			# date_added = request.args.get("")
-			# date_checked = request.args.get("")
-			# name = request.args.get("")
-			comment = request.args.get("comment")
-			# deleted = request.args.get("")
-			drive = request.args.get("drive")
-			host = request.args.get("host")
-			files_id_list = request.args.getlist("file_id")
-			res = {"id": _id, "full_path": full_path, "is_etalon": is_etalon, "comment": comment, "drive": drive, "host": host, "file_ids": files_id_list}
-			return res
 		
 		
 		@web_app.route("/ui/", methods = ["GET"])
@@ -388,14 +303,14 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/api/delete-file", methods = ["GET"])
 		def delete_file_api():
-			target_file_list = get_file_objects_from_request(request)
+			target_file_list = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)
 			self.task_manager.delete_files(target_file_list)
 			return render_template("blank_page.html", page_text = f"Deleted {len(target_file_list)} files - task added")
 		
 		
 		@web_app.route("/api/delete-dirs", methods = ["GET"])
 		def delete_dirs_api():
-			target_dir_list = get_dir_objects_from_request(request)
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
 			for dir_obj in target_dir_list:
 				self.task_manager.delete_directory(dir_obj)
 			return render_template("blank_page.html", page_text = f"Added tasks for deleting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
@@ -449,7 +364,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		web_app.route("/api/delete-task", methods = ["GET"])
 		def delete_task_api():
-			target_dir_list = get_task_objects_from_request()
+			target_dir_list = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)
 			for task in target_dir_list:
 				self.task_manager.delete(task)
 			return render_template("blank_page.html", page_text = f"tasks {target_dir_list} removed")
@@ -486,7 +401,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/api/check-dirs", methods = ["GET"])
 		def check_dirs_api():
-			target_dir_list = get_dir_objects_from_request(request)
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
 			for dir_obj in target_dir_list:
 				self.task_manager.check_dir(dir_obj)
 			return render_template("blank_page.html", page_text = f"Added tasks for checking {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
@@ -494,7 +409,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/api/find-copies", methods = ["GET"])
 		def find_copies_api():
-			target_dir_list = get_dir_objects_from_request(request)
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
 			for dir_obj in target_dir_list:
 				self.task_manager.find_copies(dir_obj)
 			return render_template("blank_page.html", page_text = f"Added tasks FindCopiesTask for {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
@@ -576,14 +491,14 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# TODO: under construction
 		@web_app.route("/api/edit-dir", methods = ["GET"])
 		def edit_dir_api():
-			target_dir = get_dir_objects_from_request(request)[0]
+			target_dir = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)[0]
 			# full_path = 
 			return render_template("blank_page.html")
 		
 		
 		@web_app.route("/api/split-dirs", methods = ["GET"])
 		def split_dir_api():
-			target_dir_list = get_dir_objects_from_request(request)
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
 			for dir_obj in target_dir_list:
 				self.task_manager.split_dir(dir_obj)
 			return render_template("blank_page.html", page_text = f"Added tasks SplitDirTask for splitting {len(target_dir_list)} dirs: {[d.url_html_code for d in target_dir_list]}")
@@ -601,7 +516,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/api/compile-dir", methods = ["GET", "POST"])
 		def compile_dir_api():
-			input_dir_list, path_to_new_dir = get_dir_objects_from_request_compile(request)
+			input_dir_list, path_to_new_dir = get_dir_objects_from_request_compile(request, get_by_id = self.dir_manager.get_by_id)
 			if len(input_dir_list) == 0:
 				self._logger.error("compile_dir_api: got empty input dir list, aborting compiling")
 				return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
@@ -628,7 +543,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# get_file_full_path_by_id
 		@web_app.route("/api/get_file_full_path_by_id", methods = ["GET"])
 		def get_file_full_path_by_id_api():
-			target_file = get_file_objects_from_request(request)[0]
+			target_file = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)[0]
 			return target_file.full_path
 		
 			
@@ -639,18 +554,26 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# delete_files_api
 		
 		
+		# api_task_json
+		@web_app.route("/api/get_task_js", methods = ["GET"])
+		def get_task_js_api():
+			target_task = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)[0]
+			
+			pass
+			
+		
 		
 		# get_file_by_id_to_js
 		@web_app.route("/api/get_file_by_id_to_js", methods = ["GET"])
 		def get_file_by_id_to_js():
-			target_file = get_file_objects_from_request(request)[0]
+			target_file = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)[0]
 			return json.dumps(target_file.dict_for_json)
 			
 		
 		# get_dir_by_id_to_js
 		@web_app.route("/api/get_dir_by_id_to_js", methods = ["GET"])
 		def get_dir_by_id_to_js():
-			target_dir = get_dir_objects_from_request(request)[0]
+			target_dir = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)[0]
 			return json.dumps(target_dir.dict_for_json)
 		
 		
@@ -661,6 +584,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return target_task.descr
 		
 		
+		# TODO: remove
 		@web_app.route("/api/get_running_task_descr", methods = ["GET"])
 		def get_running_task_descr_api():
 			crt = self.task_manager.current_running_task

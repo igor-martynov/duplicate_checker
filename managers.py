@@ -214,8 +214,8 @@ class TaskManager(BaseManager):
 		self.autostart_enabled = task_autostart
 		
 		self.__thread = None
-		self.SLEEP_BETWEEN_TASKS = 1.5
-		self.SLEEP_BETWEEN_CHECKS = 2
+		self.SLEEP_BETWEEN_TASKS = 3
+		self.SLEEP_BETWEEN_CHECKS = 5
 	
 	
 	def get_full_list(self):
@@ -290,7 +290,10 @@ class TaskManager(BaseManager):
 						wait_till_task_completes(task)
 				time.sleep(self.SLEEP_BETWEEN_TASKS)
 			self._logger.info(f"start_autostart_thread: complete on user request")
-			
+		
+		if self.autostart_enabled:
+			self._logger.info(f"start_autostart_thread: autostart already enabled, ignoring")
+			return
 		self.autostart_enabled = True
 		self.__thread = threading.Thread(target = autostart_thread)
 		self.__thread.start()
