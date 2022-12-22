@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-12-15
+# 2022-12-22
 
 
-__version__ = "0.9.8"
+__version__ = "0.9.9"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -38,8 +38,8 @@ from base import *
 from managers import *
 from flask_functions import *
 
-from sqlalchemy_declarative import DeclarativeBase, File, Directory
-from sqlalchemy import create_engine, select, Index, inspect
+# from sqlalchemy_declarative import DeclarativeBase, File, Directory
+# from sqlalchemy import create_engine, select, Index, inspect
 
 import json
 import urllib.parse
@@ -103,62 +103,21 @@ class DuplicateChecker(object):
 			else:
 				self.DB_FILE = self._config.get("main", "db_file")
 				print(f"Using absolute path to DB file: {self.DB_FILE}")
-		# sqlalchemy
-		self._engine = None
-		self._session = None
 		# managers
+		self.db_manager = DBManager(db_file = self.DB_FILE, logger = self._logger.getChild("DBManager"))
 		self.file_manager = FileManager(logger = self._logger.getChild("FileManager"))
 		self.dir_manager = DirManager(logger = self._logger.getChild("DirManager"))
 		self.task_manager = TaskManager(logger = self._logger.getChild("TaskManager"),
 			checksum_algorithm = self.checksum_algorithm,
 			ignore_duplicates = self.ignore_duplicates,
 			task_autostart = self.task_autostart)
-		# sub-init objects
-		self.init_DB_orm()
-		self.init_managers()
+		self.init_object_managers()
 	
 	
-	def get_current_schema(self):
-		inspector = inspect(self._engine)
-		schemas = inspector.get_schema_names()
-		for schema in schemas:
-			self._logger.debug(f"get_current_schema: found schema {schema}")
-			for table_name in inspector.get_table_names(schema = schema):
-				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, columns: {inspector.get_columns(table_name, schema = schema)}")
-				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, indexes: {inspector.get_indexes(table_name)}")
-	
-	
-	def create_DB_schema(self):
-		self._logger.debug("create_DB_schema: starting")
-		try:
-			File.__table__.create(bind = self._engine, checkfirst = True)
-			Directory.__table__.create(bind = self._engine, checkfirst = True)
-			TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
-			ind = Index("ix_checksum", File.__table__.c.checksum) # should be not there
-		except Exception as e:
-			self._logger.error(f"create_DB_schema: got error while creating db: {e}, traceback: {traceback.format_exc()}")
-			return False
-		self._logger.debug("create_DB_schema: complete")
-		return True
-	
-	
-	def init_DB_orm(self):
-		self._logger.debug(f"init_DB_orm: starting, will use db file {self.DB_FILE}")
-		self._engine = create_engine(f"sqlite:///{self.DB_FILE}", connect_args = {"check_same_thread": False})
-		DeclarativeBase.metadata.bind = self._engine
-		self.create_DB_schema()
-		self.get_current_schema()
-		from sqlalchemy.orm import sessionmaker
-		DBSession = sessionmaker(autocommit = False, autoflush = False)
-		DBSession.bind = self._engine
-		self._session = DBSession()
-		self._logger.debug("init_DB_orm: init complete")
-	
-	
-	def init_managers(self):
-		self.file_manager.set_db_session(self._session)
-		self.dir_manager.set_db_session(self._session)
-		self.task_manager.set_db_session(self._session)
+	def init_object_managers(self):
+		self.file_manager.set_DB_manager(self.db_manager)
+		self.dir_manager.set_DB_manager(self.db_manager)
+		self.task_manager.set_DB_manager(self.db_manager)
 		self.task_manager.set_file_manager(self.file_manager)
 		self.task_manager.set_dir_manager(self.dir_manager)
 	
@@ -174,35 +133,6 @@ class DuplicateChecker(object):
 			print(f"could not rotate log file {self.LOG_FILE}, will overwrite old file!")
 	
 	
-	def backup_DB(self):
-		"""will backup DB to file - just copy it to self.DB_FILENAME with appended postfix"""
-		import shutil
-		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
-		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
-		self._logger.debug(f"backup_DB: will backup DB file {self.DB_FILE}")
-		if not self.task_manager.running:
-			try:
-				shutil.copy(self.DB_FILE, DEST_FILENAME)
-				self._logger.info(f"backup_DB: DB backed up to file {DEST_FILENAME}")
-				return True
-			except Exception as e:
-				self._logger.error(f"backup_DB: could not backup DB, got error {e}, exception: {traceback.format_exc()}")
-				return False
-		else:
-			self._logger.debug("backup_DB: could not backup DB because task is running.")
-			return False
-	
-	
-	def execute_sql_query(self, query_text):
-		self._logger.info(f"execute_sql_query: will execute query: {query_text}")
-		try:
-			result = self._session.execute(query_text)
-			return result
-		except Exception as e:
-			self._logger.error(f"execute_sql_query: got error {e}, traceback: {traceback.format_exc()}")
-			return None
-
-
 
 class DuplicateCheckerFlask(DuplicateChecker):
 	"""DuplicateChecker web app with Flask"""
@@ -219,7 +149,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		web_app = Flask(__name__)
 		web_app.secret_key = self._config.get("web", "secret")
 		# web_app.wsgi_app = ProfilerMiddleware(web_app.wsgi_app)
-		
 		
 		
 		
@@ -524,13 +453,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			new_task = self.task_manager.compile_dir(path_to_new_dir, input_dir_list)
 			return render_template("blank_page.html", page_text = f"New task CompileDirTask for new_dir {path_to_new_dir}, input dir list: {[idir.full_path for idir in input_dir_list]} created")
 		
-		# TODO: remove this
-		@web_app.route("/ui/save-task/<int:task_id>", methods = ["GET", "POST"])
-		def save_task(task_id):
-			if request.method == "GET":
-				self.task_manager.save_task_result(self.task_manager.tasks[task_id])
-				return render_template("blank_page.html", page_text = f"task number {task_id} saved to file.")
-		
 		
 		# API
 		# get_dir_full_path_by_id
@@ -554,11 +476,18 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# delete_files_api
 		
 		
+		# get_running_task
+		@web_app.route("/api/get_running_task_id", methods = ["GET"])
+		def get_running_task_id_api():
+			return self.task_manager.current_running_task.id
+			pass
+		
+		
 		# api_task_json
 		@web_app.route("/api/get_task_js", methods = ["GET"])
 		def get_task_js_api():
 			target_task = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)[0]
-			
+			return target_task.dict_for_json
 			pass
 			
 		

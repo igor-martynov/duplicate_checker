@@ -3,6 +3,9 @@
 
 
 import os
+import traceback
+import datetime
+import time
 
 # logging
 import logging
@@ -113,7 +116,9 @@ class TaskRecord(DeclarativeBase):
 	result_OK = Column(Boolean, nullable = True, default = None) # True == result OK (as expexted), False == result unexpected
 	report = Column(String, nullable = True, default = "")
 	progress = Column(Float, nullable = True, default = 0.0)
-	
+	_prev_progress = None
+	_prev_datetime = None
+	_prev_ETA_S = 0
 	
 	@property
 	def url(self):
@@ -133,16 +138,20 @@ class TaskRecord(DeclarativeBase):
 	def state(self):
 		"""returns text description of current task state"""
 		# self._logger.debug("state: requested")
-		if self.date_start is None and not self.running:
-			return "PENDING"
-		if self.complete and self.OK and self.date_end is not None and not self.running:
-			return "COMPLETE OK"
-		if not self.complete and self.OK:
-			return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {secs_to_hrf(self.ETA_s)}, ETA: {datetime_to_str(self.ETA_datetime)})"
-		if not self.OK and self.running:
-			return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
-		if (not self.OK and not self.running) or (not self.OK and not self.complete):
-			return "COMPLETE FAILED"
+		try:
+			if self.date_start is None and not self.running:
+				return "PENDING"
+			if self.complete and self.OK and self.date_end is not None and not self.running:
+				return "COMPLETE OK"
+			if not self.complete and self.OK:
+				return f"IN PROGRESS ({(self.progress * 100):.1f}%, time left: {secs_to_hrf(self.ETA_s)}, ETA: {datetime_to_str(self.ETA_datetime)})"
+			if not self.OK and self.running:
+				return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
+			if (not self.OK and not self.running) or (not self.OK and not self.complete):
+				return "COMPLETE FAILED"
+		except Exception as e:
+			print(f"state: got error {e}, traceback: {traceback.format_exc()}")
+			self._logger.error(f"state: got error {e}, traceback: {traceback.format_exc()}")
 		return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
 	
 	
@@ -191,4 +200,8 @@ class TaskRecord(DeclarativeBase):
 		# self._logger.debug(f"ETA_datetime: will return {res}")
 		return res
 	
+	
+	@property
+	def dict_for_js(self):
+		return {"id": self.id, "descr": self.descr, "state": self.state}
 	

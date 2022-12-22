@@ -29,27 +29,41 @@ from sqlalchemy_declarative import TaskRecord
 class BaseTask(TaskRecord):
 	"""BaseTask - base class for all tasks"""
 	
-	def __init__(self, logger = None, file_manager = None, dir_manager = None, task_manager = None):
+	def __init__(self, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(BaseTask, self).__init__()
-		
+		self._db_manager = db_manager
 		self._file_manager = file_manager
 		self._dir_manager = dir_manager
 		self._task_manager = task_manager
 		self._logger = logger
 		
+		self.get_session = db_manager.get_session
+		self.close_session = db_manager.close_session
 		self._type = self.__class__.__name__
-		self.date_start = None
-		self.date_end = None
-		self._prev_progress = None
-		self._prev_datetime = None
-		self._prev_ETA_S = 0
+		# self._prev_progress = None
+		# self._prev_datetime = None
+		# self._prev_ETA_S = 0
 		
 		self.save_results = True
 		self.__result_html_complete = False
 	
 	
 	def run(self):
-		"""main task method, sync, will return when result is ready"""
+		"""main task method, sync, will return when the result is ready
+		
+		should be like:
+		
+		self.mark_task_start()
+		do_something()
+		if result_is_OK:
+			self.mark_result_OK()
+		else:
+			self.mark_result_failure()
+		self.mark_task_end()
+		self.generate_report()
+		
+		
+		"""
 		raise NotImplemented
 	
 	
@@ -58,6 +72,7 @@ class BaseTask(TaskRecord):
 		self._logger.debug("start: starting task")
 		self.__thread = threading.Thread(target = self.run)
 		self.__thread.start()
+		self.save_task()
 		self._logger.debug("start: task started in thread")
 	
 	
@@ -101,7 +116,9 @@ class BaseTask(TaskRecord):
 	
 	
 	def save_task(self):
-		self._task_manager.db_commit()
+		_session = self.get_session()
+		res = _session.merge(self)
+		self.close_session(_session, commit = True)
 	
 	
 	def mark_result_OK(self):
@@ -110,11 +127,6 @@ class BaseTask(TaskRecord):
 	
 	def mark_result_failure(self):
 		self.result_OK = False
-	
-	
-	# @property
-	# def preview_html(self):
-	# 	return f"Preview of {self.__class__.__name__}<br>"
 	
 	
 	def generate_report(self):
@@ -130,8 +142,8 @@ class AddDirTask(BaseTask):
 	
 	"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
-		super(AddDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
+		super(AddDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir_path = target_dir
 		self.file_list = []
 		self.is_etalon = is_etalon
@@ -196,12 +208,11 @@ class AddDirTask(BaseTask):
 	
 	def _create_directory_and_files(self, result, save = True):
 		now = datetime.datetime.now()
-		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path))
 		files = []
 		for r in result:
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
-		new_dir.files = files
-		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(files)} files: {[f.full_path for f in files]}")
+		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path), files = files)
+		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {[f.full_path for f in new_dir.files]}")
 		self.dir = new_dir
 		self.target_dir_id = self.dir.id
 		return new_dir
@@ -210,7 +221,8 @@ class AddDirTask(BaseTask):
 	def save(self):
 		"""save task results to DB"""
 		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
-		self._dir_manager.db_commit()
+		pass
+		self._dir_manager.update(self.dir)
 		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
 		
 	
@@ -262,8 +274,8 @@ class CompareDirsTask(BaseTask):
 	
 	"""
 	
-	def __init__(self, dir_a, dir_b, logger = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(CompareDirsTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, dir_a, dir_b, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(CompareDirsTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir_a = dir_a
 		self.dir_b = dir_b
 		self.files_on_both = []
@@ -427,8 +439,8 @@ class CompareDirsTask(BaseTask):
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of files of one dir"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(FindCopiesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(FindCopiesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir.id
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
@@ -549,12 +561,12 @@ class FindCopiesTask(BaseTask):
 		return self.report.replace("\n", "<br>\n")
 		
 
-# TODO: testing
+
 class CheckDirTask(BaseTask):
-	"""docstring for CheckDirTask"""
+	"""CheckDirTask - task to check if dir in db is actual"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
-		super(CheckDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
+		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir.id
 		self.new_dir = None
@@ -684,8 +696,8 @@ class CheckDirTask(BaseTask):
 class SplitDirTask(BaseTask):
 	"""Task to split dir into individual subdirs and add them to the DB"""
 	
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(SplitDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(SplitDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir_obj = target_dir
 		self.target_dir_id = target_dir.id
 		self.subdirs = []
@@ -738,9 +750,8 @@ class SplitDirTask(BaseTask):
 	
 	
 	def save(self):
-		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
-		self._dir_manager.db_commit()
-		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
+		self._dir_manager.update(dir_obj)
+		self._logger.debug(f"save: saved")
 		self.mark_task_OK()
 	
 	
@@ -783,8 +794,8 @@ class SplitDirTask(BaseTask):
 # TODO: check this
 class CompileDirTask(BaseTask):
 	"""docstring for CompileDirTask"""
-	def __init__(self, path_to_new_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None, input_dir_list = []):
-		super(CompileDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, path_to_new_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, input_dir_list = []):
+		super(CompileDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.path_to_new_dir = path_to_new_dir
 		self.new_dir = None
 		self.input_dirs = input_dir_list
@@ -920,8 +931,8 @@ class CompileDirTask(BaseTask):
 
 class DeleteDirTask(BaseTask):
 	"""This task implements dir deletion via tasks mechanism, thus improving data integrity and reducing risks of race conditions"""
-	def __init__(self, target_dir, logger = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(DeleteDirTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(DeleteDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir = target_dir
 		self.target_dir_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
@@ -959,8 +970,8 @@ class DeleteDirTask(BaseTask):
 # TODO: this should be extended
 class DeleteFilesTask(BaseTask):
 	"""docstring for DeleteFilesTask"""
-	def __init__(self, file_list, logger = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(DeleteFilesTask, self).__init__(logger = logger, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, file_list, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+		super(DeleteFilesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.files_to_delete = file_list
 		self.target_file_list = ",".join([f.full_path for f in file_list])
 	

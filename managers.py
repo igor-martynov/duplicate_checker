@@ -21,6 +21,10 @@ import traceback
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
 from sqlalchemy import create_engine, select
 
+from sqlalchemy_declarative import DeclarativeBase, File, Directory
+from sqlalchemy import create_engine, select, Index, inspect
+from sqlalchemy.orm import joinedload
+
 sys.path.append("./")
 from base import *
 from tasks import *
@@ -38,16 +42,22 @@ class BaseManager(object, metaclass = MetaSingleton):
 	"""BaseManager - base class for all managers. """
 	# TODO: all class methods to abstract
 	
-	def __init__(self, session = None, logger = None):
+	def __init__(self, logger = None):
 		super(BaseManager, self).__init__()
-		self._session = session
 		self._logger = logger
 	
 	
-	def set_db_session(self, _session):
-		self._session = _session
-		self._logger.debug(f"set_db_session: set to {_session}")
-		
+	# def set_db_session(self, _session):
+	# 	self._session = _session
+	# 	self._logger.debug(f"set_db_session: set to {_session}")
+	
+	
+	def set_DB_manager(self, db_manager = None):
+		self._db_manager = db_manager
+		self.get_session = db_manager.get_session
+		self.close_session = db_manager.close_session
+		self._logger.debug(f"se")
+	
 	
 	def get_by_id(self, _id):
 		raise NotImplemented
@@ -67,28 +77,37 @@ class BaseManager(object, metaclass = MetaSingleton):
 		raise NotImplemented
 	
 	
+	def update(self, obj):
+		try:
+			_session = self.get_session()
+			_session.merge(obj)
+			self.close_session(_session, commit = True)
+			self._logger.info(f"update: object updated: {obj}")
+			return True
+		except Exception as e:
+			self._logger.error(f"update: got error while updating {obj}: {e}, traceback: {traceback.format_exc()}")
+			_session.rollback()
+			self.close_session(_session, commit = False)
+			return False
+	
+	
 	def delete(self, obj):
 		"""fully delete object, including DB commit"""
 		try:
-			self._session.delete(obj)
-			self._session.commit()
+			_session = self.get_session()
+			_session.delete(obj)
+			self.close_session(_session)
 			self._logger.info(f"delete: object deleted: {obj}")
 			return True
 		except Exception as e:
 			self._logger.error(f"delete: got error while deleting {obj}: {e}, traceback: {traceback.format_exc()}")
+			_session.rollback()
+			self.close_session(_session, commit = False)
+			return False
 	
 	
 	def create(self, full_path = ""):
 		raise NotImplemented
-
-	
-	def db_stats(self):
-		return {"dirty": str(self._session.dirty), "new": str(self._session.new)}
-	
-	
-	def db_commit(self):
-		self._session.commit()
-		self._logger.debug("db_commit: complete")
 
 
 
@@ -98,26 +117,32 @@ class FileManager(BaseManager):
 	responsible for all file operations: get by id, get by checksum, 
 	"""
 	
-	def __init__(self, session = None, logger = None):
-		super(FileManager, self).__init__(session = session, logger = logger)
+	def __init__(self, logger = None):
+		super(FileManager, self).__init__(logger = logger)
 		pass
 	
 	
 	def get_by_id(self, _id):
-		res = self._session.query(File).get(_id)
+		_session = self.get_session()
+		res = _session.query(File).options(joinedload(File.dir)).get(_id)
+		self.close_session(_session, commit = False)
 		return res
 	
 	
 	def get_by_checksum(self, checksum, idir = None):
+		_session = self.get_session()
 		if idir is None:
-			res = self._session.query(File).filter(File.checksum == checksum).all()
+			res = _session.query(File).options(joinedload(File.dir)).filter(File.checksum == checksum).all()
 		else:
-			res = self._session.query(File).filter(File.checksum == checksum, File.dir_id == idir.id).all()
+			res = _session.query(File).filter(File.checksum == checksum, File.dir_id == idir.id).all()
+		self.close_session(_session, commit = False)
 		return res
 	
 	
 	def get_by_path(self, _path):
-		res = self._session.query(File).filter(File.full_path == _path).all()
+		_session = self.get_session()
+		res = _session.query(File).options(joinedload(File.dir)).filter(File.full_path == _path).all()
+		self.close_session(_session, commit = False)
 		return res
 	
 	
@@ -136,12 +161,16 @@ class FileManager(BaseManager):
 			is_etalon = is_etalon,
 			comment = comment)
 		if save:
-			self._session.add(new_file)
+			_session = self.get_session()
+			_session.add(new_file)
+			self.close_session(_session, commit = True)
 		return new_file
 	
 	
 	def find_copies(self, _file):
-		res = self._session.query(File).filter(File.checksum == _file.checksum, File.full_path != _file.full_path).all()
+		_session = self.get_session()
+		res = _session.query(File).filter(File.checksum == _file.checksum, File.full_path != _file.full_path).all()
+		self.close_session(_session, commit = False)
 		self._logger.debug(f"find_copies: searched for copies of file {_file.full_path}, found: {len(res)}")
 		return res
 	
@@ -151,35 +180,44 @@ class DirManager(BaseManager):
 	"""DirManager
 	responsible for all dir operations"""
 	
-	def __init__(self, session = None, logger = None):
-		super(DirManager, self).__init__(session = session, logger = logger)
+	def __init__(self, logger = None):
+		super(DirManager, self).__init__(logger = logger)
 		pass
 	
 	
 	def get_full_list(self):
-		res = self._session.query(Directory).all()
+		_session = self.get_session()
+		res = _session.query(Directory).all()
+		self.close_session(_session, commit = False)
 		return res
 	
 	
 	def get_by_id(self, _id):
-		res = self._session.query(Directory).get(_id)
+		_session = self.get_session()
+		res = _session.query(Directory).options(joinedload(Directory.files)).get(_id)
+		self.close_session(_session, commit = False)
 		return res
 	
 	
 	def get_by_path(self, _path):
-		res = self._session.query(Directory).filter(Directory.full_path == _path).all()
+		_session = self.get_session()
+		res = _session.query(Directory).filter(Directory.full_path == _path).all()
+		self.close_session(_session, commit = False)
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True, name = ""):
+	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True, name = "", files = []):
 		new_dir = Directory(full_path = path_to_dir,
 			date_added = date_added,
 			date_checked = date_checked,
 			is_etalon = is_etalon,
 			comment = comment,
-			name = name)
+			name = name,
+			files = files)
 		if save:
-			self._session.add(new_dir)
+			_session = self.get_session()
+			_session.add(new_dir)
+			self.close_session(_session, commit = True)
 		return new_dir
 	
 	
@@ -195,14 +233,14 @@ class DirManager(BaseManager):
 class TaskManager(BaseManager):
 	"""TaskManager - create and manage tasks"""
 	
-	def __init__(self, session = None,
+	def __init__(self,
 		logger = None,
 		file_manager = None,
 		dir_manager = None,
 		checksum_algorithm = "md5",
 		ignore_duplicates = False,
 		task_autostart = False):
-		super(TaskManager, self).__init__(session = session, logger = logger)
+		super(TaskManager, self).__init__(logger = logger)
 		
 		self._file_manager = file_manager
 		self._dir_manager = dir_manager
@@ -219,13 +257,17 @@ class TaskManager(BaseManager):
 	
 	
 	def get_full_list(self):
-		res = self._session.query(TaskRecord).all()
+		_session = self.get_session()
+		res = _session.query(TaskRecord).all()
+		self.close_session(_session, commit = False)
 		self._logger.debug(f"get_full_list: got {len(res)} -  {res}.")
 		return res
 	
 	
 	def get_by_id(self, _id):
-		res = self._session.query(TaskRecord).get(_id)
+		_session = self.get_session()
+		res = _session.query(TaskRecord).get(_id)
+		self.close_session(_session, commit = False)
 		return res
 	
 	
@@ -252,8 +294,10 @@ class TaskManager(BaseManager):
 	
 	def add_task(self, task = None):
 		if task is None: return None
-		self._session.add(task)
-		self.db_commit()
+		_session = self.get_session()
+		_session.expire_on_commit = False
+		_session.add(task)
+		self.close_session(_session, commit = True)
 		self.current_tasks.append(task)
 		self._logger.debug(f"create_task: task added: {task}")
 	
@@ -263,6 +307,7 @@ class TaskManager(BaseManager):
 			if task.running is None:
 				self._logger.info(f"start_task: starting task {task} on request")
 				task.start()
+				task.save_task()
 			else:
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
@@ -300,14 +345,14 @@ class TaskManager(BaseManager):
 		self._logger.info(f"start_autostart_thread: thread started")
 	
 	
-	def save_task_result(self, task):
-		try:
-			filename = f"./tasks/task_{task.__class__.__name__}_{task.date_start.isoformat().replace(':','')}.log"
-			with open(filename, "w") as f:
-				f.write(task.result_html)
-				self._logger.info(f"save_task_result: task result saved as {filename}")
-		except Exception as e:
-			self._logger.error(f"save_task_result: got error {e}, traceback: {traceback.format_exc()}")
+	# def save_task_result(self, task):
+	# 	try:
+	# 		filename = f"./tasks/task_{task.__class__.__name__}_{task.date_start.isoformat().replace(':','')}.log"
+	# 		with open(filename, "w") as f:
+	# 			f.write(task.result_html)
+	# 			self._logger.info(f"save_task_result: task result saved as {filename}")
+	# 	except Exception as e:
+	# 		self._logger.error(f"save_task_result: got error {e}, traceback: {traceback.format_exc()}")
 		
 	
 	def add_directory(self, path_to_dir, is_etalon = False):
@@ -321,6 +366,7 @@ class TaskManager(BaseManager):
 		self._logger.info(f"add_directory: adding directory {path_to_dir}")
 		new_task = AddDirTask(path_to_dir,
 			logger = self._logger.getChild("AddDirTask_" + str(path_to_dir.split(os.sep)[-1])),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self,
@@ -334,6 +380,7 @@ class TaskManager(BaseManager):
 	def delete_directory(self, target_dir):
 		new_task = DeleteDirTask(target_dir,
 			logger = self._logger.getChild("DeleteDirTask_" + str(target_dir.full_path.split(os.sep)[-1])),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self)
@@ -344,6 +391,7 @@ class TaskManager(BaseManager):
 	def compare_directories(self, dir_a, dir_b):
 		new_task = CompareDirsTask(dir_a, dir_b,
 			logger = self._logger.getChild(f"CompareDirsTask_{dir_a.id}_{dir_b.id}"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self)
@@ -354,6 +402,7 @@ class TaskManager(BaseManager):
 	def find_copies(self, target_dir):
 		new_task = FindCopiesTask(target_dir,
 			logger = self._logger.getChild(f"FindCopiesTask_{target_dir.id}"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self)
@@ -364,6 +413,7 @@ class TaskManager(BaseManager):
 	def check_dir(self, target_dir):
 		new_task = CheckDirTask(target_dir,
 			logger = self._logger.getChild(f"CheckDirTask_{target_dir.id}"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self,
@@ -385,6 +435,7 @@ class TaskManager(BaseManager):
 	def compile_dir(self, path_to_new_dir, input_dir_list):
 		new_task = CompileDirTask(path_to_new_dir,
 			logger = self._logger.getChild(f"CompileDirTask_{os.path.basename(path_to_new_dir)}"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self,
@@ -396,10 +447,129 @@ class TaskManager(BaseManager):
 	def delete_files(self, files_to_delete):
 		new_task = DeleteFilesTask(files_to_delete,
 			logger = self._logger.getChild(f"DeleteFilesTask_{len(self.current_tasks)}"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self)
 		self.add_task(new_task)
 		return new_task
 	
+
+
+class DBManager(object, metaclass = MetaSingleton):
+	"""docstring for DBManager"""
+	def __init__(self,
+		db_file = None,
+		logger = None):
+		super(DBManager, self).__init__()
+		self._logger = logger
+		self.DB_FILE = db_file
+		self._engine = None
+		self.session_in_use = False
+		self.WAIT_LOCK_DELAY = 0.2
+		# sub-init
+		self.init_DB_ORM()
+		self.create_DB_schema()
+		self.get_current_schema()
 	
+	
+	
+	def get_current_schema(self):
+		inspector = inspect(self._engine)
+		schemas = inspector.get_schema_names()
+		for schema in schemas:
+			self._logger.debug(f"get_current_schema: found schema {schema}")
+			for table_name in inspector.get_table_names(schema = schema):
+				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, columns: {inspector.get_columns(table_name, schema = schema)}")
+				self._logger.debug(f"get_current_schema: already existing: table: {table_name}, indexes: {inspector.get_indexes(table_name)}")
+	
+	
+	def create_DB_schema(self):
+		self._logger.debug("create_DB_schema: starting")
+		try:
+			File.__table__.create(bind = self._engine, checkfirst = True)
+			Directory.__table__.create(bind = self._engine, checkfirst = True)
+			TaskRecord.__table__.create(bind = self._engine, checkfirst = True)
+			ind = Index("ix_checksum", File.__table__.c.checksum) # should be not there
+		except Exception as e:
+			self._logger.error(f"create_DB_schema: got error while creating db: {e}, traceback: {traceback.format_exc()}")
+			return False
+		self._logger.debug("create_DB_schema: complete")
+		return True
+	
+	
+	def init_DB_ORM(self):
+		self._logger.debug(f"init_DB_ORM: starting, will use db file {self.DB_FILE}")
+		self._engine = create_engine(f"sqlite:///{self.DB_FILE}", connect_args = {"check_same_thread": False})
+		DeclarativeBase.metadata.bind = self._engine
+		self._logger.debug("init_DB_ORM: init complete")
+	
+	
+	def get_session(self, expire_on_commit = True):
+		from sqlalchemy.orm import sessionmaker
+		while self.session_in_use:
+			self._logger.debug(f"get_session: waiting for lock on DB session...")
+			time.sleep(self.WAIT_LOCK_DELAY)
+		self.session_in_use = True
+		DBSession = sessionmaker(autocommit = False, autoflush = False)
+		DBSession.bind = self._engine
+		_session = DBSession()
+		if expire_on_commit is False:
+			_session.expire_on_commit = False
+		_session.begin()
+		return _session
+	
+	
+	def close_session(self, _session, commit = True):
+		if commit is False:
+			_session.close()
+			self.session_in_use = False
+			return
+		_session.commit()
+		_session.flush()
+		_session.close()
+		self.session_in_use = False
+	
+	
+	def backup_DB(self):
+		"""will backup DB to file - just copy it to self.DB_FILENAME with appended postfix"""
+		import shutil
+		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
+		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
+		self._logger.debug(f"backup_DB: will backup DB file {self.DB_FILE}")
+		if not self.task_manager.running:
+			try:
+				shutil.copy(self.DB_FILE, DEST_FILENAME)
+				self._logger.info(f"backup_DB: DB backed up to file {DEST_FILENAME}")
+				return True
+			except Exception as e:
+				self._logger.error(f"backup_DB: could not backup DB, got error {e}, exception: {traceback.format_exc()}")
+				return False
+		else:
+			self._logger.debug("backup_DB: could not backup DB because task is running.")
+			return False
+	
+	
+	def execute_sql_query(self, query_text):
+		self._logger.info(f"execute_sql_query: will execute query: {query_text}")
+		try:
+			_session = self.get_session()
+			result = _session.execute(query_text)
+			self.close_session(_session, commit = True)
+			return result
+		except Exception as e:
+			self._logger.error(f"execute_sql_query: got error {e}, traceback: {traceback.format_exc()}")
+			return None
+
+	
+	def run_vacuum(self):
+		try:
+			_session = self.get_session()
+			cursor = _session.connection()
+			cursor.execute("VACUUM")
+			self.close_session(_session)
+			self._logger.info(f"run_vacuum: vacuum complete")
+		except Exception as e:
+			self._logger.error(f"run_vacuum: got error {e}, traceback: {traceback.format_exc()}")
+	
+
