@@ -211,6 +211,7 @@ class AddDirTask(BaseTask):
 		files = []
 		for r in result:
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
+		self._logger.debug(f"_create_directory_and_files: created files")
 		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path), files = files)
 		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {[f.full_path for f in new_dir.files]}")
 		self.dir = new_dir
@@ -220,10 +221,8 @@ class AddDirTask(BaseTask):
 	
 	def save(self):
 		"""save task results to DB"""
-		self._logger.debug(f"save: currently dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
-		pass
 		self._dir_manager.update(self.dir)
-		self._logger.debug(f"save: commited, after commit dirty records are: {self._dir_manager.db_stats()['dirty']}, new: {self._dir_manager.db_stats()['new']}")
+		self._logger.debug(f"save: commited")
 		
 	
 	def run(self):
@@ -308,6 +307,10 @@ class CompareDirsTask(BaseTask):
 		self.mark_task_start()
 		self._logger.debug("run: checking files on both A and B")
 		try:
+			_session = self.get_session()
+			_session.add(self.dir_a)
+			_session.add(self.dir_b)
+			
 			len_dir_a_files = len(self.dir_a.files)
 			len_dir_b_files = len(self.dir_b.files)
 			len_all_files = len_dir_a_files + len_dir_b_files
@@ -315,14 +318,19 @@ class CompareDirsTask(BaseTask):
 			for fa in self.dir_a.files:
 				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fa.full_path} - {fa.checksum}")
-				candidates = self._file_manager.get_by_checksum(fa.checksum, idir = self.dir_b)
+				candidates = self._file_manager.get_by_checksum(fa.checksum, idir = self.dir_b, session = _session)
 				tmp_c_str = "input_checksum is " + fa.checksum + "; "
 				for c in candidates:
 					tmp_c_str += c.full_path + " - " + c.checksum + ", "
 				self._logger.debug(f"got candidates: {tmp_c_str}")
 				for c in candidates:
-					if c.dir == self.dir_b:
-						# 
+					if c.dir is None:
+						self._logger.error(f"run: error dir is None!")
+						continue
+					self._logger.debug(f"c {c.checksum} d {c.dir.id}")
+					if c.dir.id == self.dir_b.id:
+						if c.dir != self.dir_b:
+							self._logger.error(f"run: dirs are not equal!")
 						if fa not in self.files_on_both:
 							self._logger.debug(f"run: added to files_on_both fa: {fa.full_path} because {fa.checksum} == {c.checksum}, candidate: {c.full_path}")
 							self.files_on_both.append(fa)
@@ -331,18 +339,26 @@ class CompareDirsTask(BaseTask):
 							self._logger.debug(f"run: added to files_on_both c: {c.full_path} because {c.checksum} == {fa.checksum}, fa: {fa.full_path}")
 							self.files_on_both.append(c)
 							self.files_b_on_a.append(c)
+						if fa in self.files_on_both and c in self.files_on_both:
+							self._logger.debug(f"run: did not added candidate {c.full_path} and file {fa.full_path}")
+					else:
+						self._logger.debug(f"run: candidate {c.full_path} for {fa.full_path} is from wrong dir")
 			for fb in self.dir_b.files:
 				self.progress += 0.25 / len_all_files
 				self._logger.debug(f"run: checking for both A and B file {fb.full_path} - {fb.checksum}")
-				candidates = self._file_manager.get_by_checksum(fb.checksum, idir = self.dir_a)
+				candidates = self._file_manager.get_by_checksum(fb.checksum, idir = self.dir_a, session = _session)
 				# fb_has_copy = False
 				tmp_c_str = "input_checksum is " + fb.checksum + "; "
 				for c in candidates:
 					tmp_c_str += c.full_path + " - " + c.checksum + ", "
 				self._logger.debug(f"got candidates: {tmp_c_str}")
 				for c in candidates:
-					if c.dir == self.dir_a:
-						# 
+					if c.dir is None:
+						self._logger.error(f"run: error dir is None!")
+						continue
+					if c.dir.id == self.dir_a.id:
+						if c.dir != self.dir_a:
+							self._logger.error(f"run: dirs are not equal!")
 						if fb not in self.files_on_both:
 							self._logger.debug(f"run: added to files_on_both fb: {fb.full_path} because {fb.checksum} == {c.checksum}, candidate: {c.full_path}")
 							self.files_on_both.append(fb)
@@ -373,6 +389,7 @@ class CompareDirsTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.close_session(_session)
 		self.save_task()
 	
 	
@@ -458,6 +475,8 @@ class FindCopiesTask(BaseTask):
 	def run(self):
 		self._logger.info(f"run: starting with dir {self.dir.full_path}")
 		self.mark_task_start()
+		_session = self.get_session()
+		_session.add(self.dir)
 		self.file_dict = {}
 		for f in self.dir.files:
 			self.file_dict[f] = []
@@ -474,7 +493,7 @@ class FindCopiesTask(BaseTask):
 			progress_increase = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
 				self._logger.debug(f"run: checking file {f.full_path}... progress: {self.progress}")
-				candidates = self._file_manager.find_copies(f)
+				candidates = self._file_manager.find_copies(f, session = _session)
 				self.progress += progress_increase
 				for c in candidates:
 					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
@@ -492,6 +511,7 @@ class FindCopiesTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		self.close_session(_session)
 		self.save_task()
 	
 	
@@ -512,7 +532,6 @@ class FindCopiesTask(BaseTask):
 		self._logger.debug("get_copies_stats: complete")
 	
 	
-	# @cProfile_wrapper
 	def generate_report(self):
 		self._logger.debug("generate_report: starting")
 		self.report = f"{self.descr}" + "\n"
@@ -590,6 +609,7 @@ class CheckDirTask(BaseTask):
 	def init_subtask_add(self):
 		self.subtask_add = AddDirTask(self.dir.full_path,
 			logger = self._logger.getChild("SubTask_AddDirTask_"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self._task_manager,
@@ -603,6 +623,7 @@ class CheckDirTask(BaseTask):
 		self.subtask_compare = CompareDirsTask(self.dir,
 			self.subtask_add.dir,
 			logger = self._logger.getChild("SubTask_CompareDirsTask_"),
+			db_manager = self._db_manager,
 			file_manager = self._file_manager,
 			dir_manager = self._dir_manager,
 			task_manager = self._task_manager)
