@@ -463,8 +463,8 @@ class FindCopiesTask(BaseTask):
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
 		self.copies_dict = {} # key: dir that contains copy, value: 
 		self.no_copies_list = [] # list of files without copies
-		# self.__result_html_complete = False
 		self.dir_has_full_copy = False
+		self.full_copies_list = []
 	
 	
 	@property
@@ -511,6 +511,8 @@ class FindCopiesTask(BaseTask):
 			self.mark_task_failure()
 		self.mark_task_end()
 		self.generate_report()
+		if len(self.full_copies_list) != 0:
+			self.mark_result_OK()
 		self.close_session(_session)
 		self.save_task()
 	
@@ -559,9 +561,11 @@ class FindCopiesTask(BaseTask):
 			# then use these sets
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
 				self.dir_has_full_copy = True
+				self.full_copies_list.append(d)
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
 				self.dir_has_full_copy = True
+				self.full_copies_list.append(d)
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
