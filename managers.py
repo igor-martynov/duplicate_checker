@@ -119,7 +119,7 @@ class BaseManager(object, metaclass = MetaSingleton):
 class FileManager(BaseManager):
 	"""FileManager
 	
-	responsible for all file operations: get by id, get by checksum, 
+	responsible for all file operations
 	"""
 	
 	def __init__(self, logger = None):
@@ -208,7 +208,7 @@ class FileManager(BaseManager):
 
 class DirManager(BaseManager):
 	"""DirManager
-	responsible for all dir operations"""
+	responsible for all directory operations"""
 	
 	def __init__(self, logger = None):
 		super(DirManager, self).__init__(logger = logger)
@@ -357,7 +357,7 @@ class TaskManager(BaseManager):
 		if session is None:
 			self.close_session(_session, commit = True)
 		self.current_tasks.append(task)
-		self._logger.debug(f"create_task: task added: {task}")
+		self._logger.debug(f"create_task: task added: {task.descr}")
 	
 	
 	def start_task(self, task):
@@ -370,10 +370,24 @@ class TaskManager(BaseManager):
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
 			# re-run task here
+			self._logger.info(f"start_task: re-starting task {task} on request")
+			self.re_run_task(task)
 			self._logger.error(f"start_task: could not find task {task} in current task list, ignoring")
 	
 	
 	def re_run_task(self, task):
+		# detect task type
+		if task._type == "AddDirTask":
+			new_task = self.add_directory(task.target_dir_full_path, is_etalon = False)
+		elif task._type == "CompareDirsTask":
+			pass
+		elif task._type == "FindCopiesTask":
+			pass
+		elif task._type == "CheckDirTask":
+				pass
+		# create new
+		
+		# start
 		
 		pass
 	
@@ -383,7 +397,7 @@ class TaskManager(BaseManager):
 		def wait_till_task_completes(task):
 			while task.running:
 				time.sleep(self.SLEEP_BETWEEN_CHECKS)
-				task.save_task()
+				# task.save_task()
 			
 		def autostart_thread():
 			time.sleep(self.SLEEP_BETWEEN_CHECKS)

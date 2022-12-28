@@ -105,7 +105,7 @@ class BaseTask(TaskRecord):
 		self.running = False
 	
 	
-	def mark_task_failure(self):
+	def mark_task_FAIL(self):
 		self.complete = False
 		self.OK = False
 		self.running = False
@@ -116,16 +116,23 @@ class BaseTask(TaskRecord):
 	
 	
 	def save_task(self):
-		_session = self.get_session()
-		res = _session.merge(self)
-		self.close_session(_session, commit = True)
+		try:
+			_session = self.get_session()
+			res = _session.merge(self)
+			self.close_session(_session, commit = True)
+		except Exception as e:
+			self._logger.error(f"save_task: got error: {e}, traceback: {traceback.format_exc()}")
+			self.mark_task_FAIL()
+			self.close_session(_session, commit = False)
 	
 	
 	def mark_result_OK(self):
+		self._logger.info("mark_result_OK: result marked as OK")
 		self.result_OK = True
 	
 	
 	def mark_result_failure(self):
+		self._logger.info("mark_result_failure: result marked as FAIL")
 		self.result_OK = False
 	
 	
@@ -144,7 +151,7 @@ class AddDirTask(BaseTask):
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
 		super(AddDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
-		self.target_dir_path = target_dir
+		self.target_dir_full_path = target_dir
 		self.file_list = []
 		self.is_etalon = is_etalon
 		self._sleep_delay = 1
@@ -154,12 +161,12 @@ class AddDirTask(BaseTask):
 		self.__pool = None
 		
 		if self._logger is not None:
-			self._logger.debug(f"__init__: init complete with target_dir_path {self.target_dir_path}")
+			self._logger.debug(f"__init__: init complete with target_dir_full_path {self.target_dir_full_path}")
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for {self.target_dir_path}"
+		return f"Task {self._type} for {self.target_dir_full_path}"
 	
 	
 	def get_dir_listing(self, path_to_dir):
@@ -212,7 +219,7 @@ class AddDirTask(BaseTask):
 		for r in result:
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
 		self._logger.debug(f"_create_directory_and_files: created files")
-		new_dir = self._dir_manager.create(self.target_dir_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_path), files = files)
+		new_dir = self._dir_manager.create(self.target_dir_full_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_full_path), files = files)
 		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {[f.full_path for f in new_dir.files]}")
 		self.dir = new_dir
 		self.target_dir_id = self.dir.id
@@ -226,10 +233,10 @@ class AddDirTask(BaseTask):
 		
 	
 	def run(self):
-		self._logger.info(f"run: starting, target_dir_path: {self.target_dir_path}")
+		self._logger.info(f"run: starting, target_dir_full_path: {self.target_dir_full_path}")
 		self.mark_task_start()
 		try:
-			self.file_list = self.get_dir_listing(self.target_dir_path)
+			self.file_list = self.get_dir_listing(self.target_dir_full_path)
 			self._logger.debug(f"run: got file list: {self.file_list}")
 			
 			dict_list = self._create_input_list()
@@ -250,7 +257,7 @@ class AddDirTask(BaseTask):
 			return new_dir
 		except Exception as e:
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			self.mark_result_failure()
 			self.mark_task_end()
 			self.save_task()
@@ -258,7 +265,7 @@ class AddDirTask(BaseTask):
 	
 	
 	def generate_report(self):
-		self.report = f"AddDirTask for {self.target_dir_path}, status: {self.state}" + "\n"
+		self.report = f"AddDirTask for {self.target_dir_full_path}, status: {self.state}" + "\n"
 		self.report += f"{len(self.dir.files)} files added:" + "\n"
 		for f in self.dir.files:
 			self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
@@ -386,7 +393,7 @@ class CompareDirsTask(BaseTask):
 			self.mark_task_OK()
 		except Exception as e:
 			self._logger.error(f"run: got error while running: {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 		self.mark_task_end()
 		self.generate_report()
 		self.close_session(_session)
@@ -508,11 +515,13 @@ class FindCopiesTask(BaseTask):
 			self.mark_task_OK()
 		except Exception as e:
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 		self.mark_task_end()
 		self.generate_report()
 		if len(self.full_copies_list) != 0:
 			self.mark_result_OK()
+		else:
+			self.mark_result_failure()
 		self.close_session(_session)
 		self.save_task()
 	
@@ -597,6 +606,7 @@ class CheckDirTask(BaseTask):
 		self.subtask_compare = None
 		self.checksum_algorithm = checksum_algorithm
 	
+	
 	def mark_task_start(self):
 		self.date_start = datetime.datetime.now()
 		self.running = True
@@ -620,7 +630,7 @@ class CheckDirTask(BaseTask):
 			is_etalon = self.dir.is_etalon,
 			checksum_algorithm = self.checksum_algorithm)
 		self.subtask_add.save_results = False
-		self._logger.debug(f"init_subtask_add: adding subtask AddDirTask, target_dir_path is: {self.dir.full_path}")
+		self._logger.debug(f"init_subtask_add: adding subtask AddDirTask, target_dir_full_path is: {self.dir.full_path}")
 	
 	
 	def init_subtask_compare(self):
@@ -640,7 +650,7 @@ class CheckDirTask(BaseTask):
 			self.subtask_compare.run()
 		except Exception as e:
 			self._logger.error(f"compare_dirs_old_and_new: got error {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			self.mark_result_failure()
 		self._logger.debug("compare_dirs_old_and_new: comparation complete")
 		if self.subtask_compare.result_OK:
@@ -660,7 +670,7 @@ class CheckDirTask(BaseTask):
 			return res
 		except Exception as e:
 			self._logger.error(f"add_dir: got error: {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			self.mark_result_failure()
 	
 	
@@ -680,7 +690,7 @@ class CheckDirTask(BaseTask):
 			self.mark_task_OK()
 		except Exception as e:
 			self._logger.error(f"got error while running: {e}, traceback: {traceback.format_exc()}")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 		self.mark_task_end()
 		self.generate_report()
 		self.save_task()
@@ -692,9 +702,11 @@ class CheckDirTask(BaseTask):
 	
 	
 	def generate_report(self):
-		self.report = f"{self.descr}" + "\n"
+		_session = self.get_session()
+		_session.add(self.dir)
+		# self.report = f"{self.descr}" + "\n"
 		self.report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
-		self.report += f"Actual dir: {self.subtask_add.dir.full_path}, {len(self.subtask_add.dir.files)} files" + "\n"
+		# self.report += f"Actual dir: {len(self.subtask_add.dir.files)} files" + "\n"
 		if self.subtask_compare.dirs_are_equal:
 			self.report += "Dir is OK, all checksums are actual\n"
 		else:
@@ -704,6 +716,7 @@ class CheckDirTask(BaseTask):
 		self.report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
 		self.report += f"Task took: {self.duration}s"
 		self._logger.debug(f"generate_report: report ready, length: {len(self.report)}")
+		self.close_session(_session)
 		return self.report
 
 	
@@ -878,7 +891,7 @@ class CompileDirTask(BaseTask):
 		for f in self.unique_files:
 			if f.name in resulting_names:
 				# will try and ganerate new name
-				new_name = f.name + f.checksum[-6:]
+				new_name = f.name + "_" + f.checksum[-6:]
 				self._logger.info(f"create_copy_commands: will use new name {new_name} for file {f.full_path}")
 				cmd_args_dict[new_name] = f
 				self.renamed_files.append((f, new_name))
@@ -927,7 +940,7 @@ class CompileDirTask(BaseTask):
 			self._logger.debug("run: all files exist")
 		else:
 			self._logger.error(f"run: aborting dir compilation due to missing file.")
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			self.mark_result_failure()
 			self.mark_task_end()
 			return
@@ -946,7 +959,7 @@ class CompileDirTask(BaseTask):
 		else:
 			self._logger.error("run: got error while executing commands, exiting")
 			self.mark_result_failure()
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			return
 		self.mark_task_end()
 		self.generate_report()
@@ -959,19 +972,19 @@ class DeleteDirTask(BaseTask):
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(DeleteDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir = target_dir
-		self.target_dir_path = target_dir.full_path
+		self.target_dir_full_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for dir {self.target_dir_path}"
+		return f"Task {self._type} for dir {self.target_dir_full_path}"
 		
 	
 	# @cProfile_wrapper
 	def run(self):
 		self.mark_task_start()
-		self._logger.debug(f"run: starting deletion of dir {self.target_dir_id} - {self.target_dir_path}")
+		self._logger.debug(f"run: starting deletion of dir {self.target_dir_id} - {self.target_dir_full_path}")
 		try:
 			num_files = len(self.target_dir.files)
 			progress_increment = 1 / num_files if num_files != 0 else 1.0
@@ -983,9 +996,9 @@ class DeleteDirTask(BaseTask):
 			self.mark_result_OK()
 			self.mark_task_OK()
 		except Exception as e:
-			self._logger.error(f"run: got error while deleting dir {self.target_dir_id} - {self.target_dir_path}. error: {e}, traceback: {traceback.format_exc()}")
+			self._logger.error(f"run: got error while deleting dir {self.target_dir_id} - {self.target_dir_full_path}. error: {e}, traceback: {traceback.format_exc()}")
 			self.mark_result_failure()
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 		self.mark_task_end()
 		self.generate_report()
 		self.save_task()
@@ -1014,7 +1027,7 @@ class DeleteFilesTask(BaseTask):
 			self.mark_task_OK()
 			self.mark_result_OK()
 		except Exception as e:
-			self.mark_task_failure()
+			self.mark_task_FAIL()
 			self.mark_result_failure()
 			self._logger.error(f"run: got error {e}, traceback: {traceback.format_exc()}")
 		self.mark_task_end()
