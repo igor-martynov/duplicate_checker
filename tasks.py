@@ -334,7 +334,7 @@ class CompareDirsTask(BaseTask):
 		
 	
 	def run(self):
-		self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
+		# self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
 		self.mark_task_start()
 		self._logger.debug("run: checking files on both A and B")
 		try:
@@ -740,8 +740,8 @@ class CheckDirTask(BaseTask):
 		else:
 			self.report += "DIR HAS CHANGED! Please check result of subtask CompareDirsTask.\n"
 		self.report += "\n"
-		self.report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		self.report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
+		self.report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
 		self.report += f"Task took: {self.duration}s"
 		self._logger.debug(f"generate_report: report ready, length: {len(self.report)}")
 		self.close_session(_session)
