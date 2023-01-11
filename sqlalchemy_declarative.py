@@ -158,7 +158,7 @@ class TaskRecord(DeclarativeBase):
 	
 	@property
 	def result_html(self):
-		if self.report is not None or len(self.report) != 0:
+		if self.report is not None and len(self.report) != 0:
 			# self._logger.debug("result_html: returning pre-generated report")
 			return self.report.replace("\n", "<br>\n")
 		return self.generate_report().replace("\n", "<br>\n")	

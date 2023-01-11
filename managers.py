@@ -170,10 +170,12 @@ class FileManager(BaseManager):
 		date_checked = None,
 		is_etalon = False,
 		comment = "",
+		_dir = None,
 		save = True,
 		session = None):
 		new_file = File(full_path = path_to_file,
 			checksum = checksum,
+			dir = _dir,
 			date_added = date_added,
 			date_checked = date_checked,
 			is_etalon = is_etalon,
@@ -363,18 +365,19 @@ class TaskManager(BaseManager):
 	def start_task(self, task):
 		if task in self.current_tasks:
 			if task.running is None:
-				self._logger.info(f"start_task: starting task {task} on request")
+				self._logger.info(f"start_task: starting task {task}")
 				task.start()
-				task.save_task()
+				self._logger.info(f"start_task: task {task} started")
 			else:
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
 			# re-run task here
-			self._logger.info(f"start_task: re-starting task {task} on request")
+			self._logger.info(f"start_task: re-starting task {task}")
 			self.re_run_task(task)
 			self._logger.error(f"start_task: could not find task {task} in current task list, ignoring")
 	
 	
+	# TODO: under construction
 	def re_run_task(self, task):
 		# detect task type
 		if task._type == "AddDirTask":
@@ -410,7 +413,7 @@ class TaskManager(BaseManager):
 						# ignore task
 						pass
 					else:
-						task.start()
+						self.start_task(task)
 						time.sleep(self.SLEEP_BETWEEN_CHECKS)
 						wait_till_task_completes(task)
 				time.sleep(self.SLEEP_BETWEEN_TASKS)
@@ -537,11 +540,12 @@ class DBManager(object, metaclass = MetaSingleton):
 		self.DB_FILE = db_file
 		self._engine = None
 		self.session_in_use = False
-		self.WAIT_LOCK_DELAY = 0.3
+		self.WAIT_LOCK_DELAY = 0.5
 		# sub-init
 		self.init_DB_ORM()
 		self.create_DB_schema()
 		self.get_current_schema()
+		self._sessions = []
 	
 	
 	
@@ -579,7 +583,7 @@ class DBManager(object, metaclass = MetaSingleton):
 	def get_session(self, expire_on_commit = True):
 		from sqlalchemy.orm import sessionmaker
 		while self.session_in_use:
-			self._logger.debug(f"get_session: waiting for lock on DB session...")
+			self._logger.debug(f"get_session: waiting for lock on DB session... sessions: {self._sessions}")
 			time.sleep(self.WAIT_LOCK_DELAY)
 		self.session_in_use = True
 		DBSession = sessionmaker(autocommit = False, autoflush = False)
@@ -588,6 +592,8 @@ class DBManager(object, metaclass = MetaSingleton):
 		if expire_on_commit is False:
 			_session.expire_on_commit = False
 		_session.begin()
+		self._sessions.append(_session)
+		self._logger.debug(f"get_session: session started: {_session}, sessions: {self._sessions}")
 		return _session
 	
 	
@@ -595,11 +601,15 @@ class DBManager(object, metaclass = MetaSingleton):
 		if commit is False:
 			_session.close()
 			self.session_in_use = False
+			self._sessions.remove(_session)
+			self._logger.debug(f"close_session: session closed: {_session}, NOT commited, sessions: {self._sessions}")
 			return
 		_session.commit()
 		_session.flush()
 		_session.close()
+		self._sessions.remove(_session)
 		self.session_in_use = False
+		self._logger.debug(f"close_session: session closed: {_session}, commited, sessions: {self._sessions}")
 	
 	
 	def backup_DB(self):

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2022-12-28
+# 2023-01-11
 
 
 __version__ = "0.9.9"
@@ -89,7 +89,7 @@ class DuplicateChecker(object):
 		formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 		fh.setFormatter(formatter)
 		self._logger.addHandler(fh)
-		self._logger.debug("======== duplicate_checker starting, version " + __version__ + " ========")
+		self._logger.debug(f"======== duplicate_checker starting, version {__version__} ========")
 		self.checksum_algorithm = self._config.get("main", "checksum_algorithm")
 		self.ignore_duplicates = False
 		self.task_autostart = True if self._config.get("main", "task_autostart") == "yes" else False
@@ -325,7 +325,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				if dir_b is None:
 					return render_template("blank_page.html", page_text = f"ERROR Directory B with id {dir_b_id} does not exist!")
 				self.task_manager.compare_directories(dir_a, dir_b)
-				return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
+				return render_template("blank_page.html", page_text = "task CompareDirsTask launched, see all tasks - [<a href='/ui/show-all-tasks' title='show tasks'>show tasks</a>]<br>")
 		
 		
 		@web_app.route("/api/check-dirs", methods = ["GET"])

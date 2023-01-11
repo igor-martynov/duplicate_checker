@@ -71,9 +71,12 @@ class BaseTask(TaskRecord):
 		"""start self.run() in parallel thread. async, will return before result is ready"""
 		self._logger.debug("start: starting task")
 		self.__thread = threading.Thread(target = self.run)
-		self.__thread.start()
+		self.mark_task_start()
+		self._logger.debug(f"start: task marked as started")
 		self.save_task()
-		self._logger.debug("start: task started in thread")
+		self._logger.debug(f"start: task saved to DB")
+		self.__thread.start()
+		self._logger.debug("start: task started in sub-thread")
 	
 	
 	def abort(self):
@@ -111,19 +114,26 @@ class BaseTask(TaskRecord):
 		self.running = False
 	
 	
-	def save(self):
+	def save_result(self):
 		raise NotImplemented
 	
 	
-	def save_task(self):
-		try:
+	def save_task(self, session = None):
+		self._logger.debug(f"save_task: starting")
+		if session is None:
 			_session = self.get_session()
+		else:
+			_session = session
+		try:
 			res = _session.merge(self)
-			self.close_session(_session, commit = True)
+			self._logger.debug(f"save_task: merged to session")
+			if session is None:
+				self.close_session(_session, commit = True)
 		except Exception as e:
 			self._logger.error(f"save_task: got error: {e}, traceback: {traceback.format_exc()}")
 			self.mark_task_FAIL()
-			self.close_session(_session, commit = False)
+			if session is None:
+				self.close_session(_session, commit = False)
 	
 	
 	def mark_result_OK(self):
@@ -172,7 +182,7 @@ class AddDirTask(BaseTask):
 	def get_dir_listing(self, path_to_dir):
 		glob_str = os.path.join(path_to_dir, "**")
 		file_list = glob.glob(glob_str, recursive = True)
-		self._logger.debug(f"get_dir_listing: got list {file_list} for glob pattern {glob_str}")
+		self._logger.debug(f"get_dir_listing: got {len(file_list)} elements in list {file_list} for glob pattern {glob_str}")
 		return file_list
 	
 	
@@ -213,39 +223,50 @@ class AddDirTask(BaseTask):
 		return
 	
 	
-	def _create_directory_and_files(self, result, save = True):
+	def _create_directory_and_files(self, result, save = True, session = None):
 		now = datetime.datetime.now()
+		if session is None:
+			_session = self.get_session()
+		else:
+			_session = session
+		new_dir = self._dir_manager.create(self.target_dir_full_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_full_path), session = _session)
+		self._logger.debug(f"_create_directory_and_files: new empty dir created: {new_dir}")
 		files = []
 		for r in result:
-			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save))
-		self._logger.debug(f"_create_directory_and_files: created files")
-		new_dir = self._dir_manager.create(self.target_dir_full_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_full_path), files = files)
+			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], _dir = new_dir, date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save, session = _session))
+		self._logger.debug(f"_create_directory_and_files: created files in already created dir")
 		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {[f.full_path for f in new_dir.files]}")
 		self.dir = new_dir
 		self.target_dir_id = self.dir.id
+		if session is None:
+			self.close_session(_session)
 		return new_dir
 	
 	
-	def save(self):
+	def save_result(self, session = None):
 		"""save task results to DB"""
-		self._dir_manager.update(self.dir)
-		self._logger.debug(f"save: commited")
+		self._dir_manager.update(self.dir, session = session)
+		self._logger.debug(f"save_result: commited")
 		
 	
 	def run(self):
 		self._logger.info(f"run: starting, target_dir_full_path: {self.target_dir_full_path}")
-		self.mark_task_start()
+		# self.mark_task_start()
 		try:
 			self.file_list = self.get_dir_listing(self.target_dir_full_path)
 			self._logger.debug(f"run: got file list: {self.file_list}")
-			
 			dict_list = self._create_input_list()
-			dict_length = len(dict_list)
+			# dict_length = len(dict_list)
 			result = self._create_multiprocessing_pool(dict_list)
 			self._wait_till_complete(result, dict_list)
+			# _session = self.get_session()
+			# new_dir = self._create_directory_and_files(result, session = _session)
+			
+			# now all slow processes are complete
 			new_dir = self._create_directory_and_files(result)
+			# _session = self.get_session()
 			if self.save_results:
-				self.save()	
+				self.save_result()	
 			else:
 				self._logger.info("run: not saving results because save set to False")	
 			self.mark_task_OK()
@@ -265,12 +286,15 @@ class AddDirTask(BaseTask):
 	
 	
 	def generate_report(self):
+		_session = self.get_session()
+		_session.add(self.dir)
 		self.report = f"AddDirTask for {self.target_dir_full_path}, status: {self.state}" + "\n"
 		self.report += f"{len(self.dir.files)} files added:" + "\n"
 		for f in self.dir.files:
 			self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
 		self.report += "\n\n" + f"Task took: {self.duration}s"
 		self._logger.debug(f"generate_report: report ready")
+		self.close_session(_session)
 		return self.report
 
 
@@ -704,6 +728,10 @@ class CheckDirTask(BaseTask):
 	def generate_report(self):
 		_session = self.get_session()
 		_session.add(self.dir)
+		_session.add(self.subtask_add)
+		_session.add(self.subtask_compare)
+		_session.add(self.subtask_compare.dir_a)
+		_session.add(self.subtask_compare.dir_b)
 		# self.report = f"{self.descr}" + "\n"
 		self.report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
 		# self.report += f"Actual dir: {len(self.subtask_add.dir.files)} files" + "\n"
@@ -787,9 +815,9 @@ class SplitDirTask(BaseTask):
 			self.progress += progress_increment
 	
 	
-	def save(self):
+	def save_result(self):
 		self._dir_manager.update(dir_obj)
-		self._logger.debug(f"save: saved")
+		self._logger.debug(f"save_result: saved")
 		self.mark_task_OK()
 	
 	
@@ -818,7 +846,7 @@ class SplitDirTask(BaseTask):
 		self.mark_task_start()
 		self.get_dict_of_subdirs()
 		self.create_subdirs()
-		self.save()
+		self.save_result()
 		self.mark_task_end()
 		if len(self.subdirs) != 0:
 			self.mark_result_OK()
