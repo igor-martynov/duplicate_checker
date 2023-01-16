@@ -420,8 +420,21 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		# TODO: under construction
 		@web_app.route("/api/edit-dir", methods = ["GET"])
 		def edit_dir_api():
-			target_dir = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)[0]
-			# full_path = 
+			dir_dict = get_dir_dict_from_request(request)
+			target_dir = self.dir_manager.get_by_id(dir_dict["id"])
+			if target_dir.full_path != dir_dict["full_path"]:
+				self._logger.debug(f"edit_dir_api: got new full_path: {dir_dict['full_path']} but this is unsupported")
+				# target_dir.full_path = dir_dict["full_path"]
+			if target_dir.is_etalon != dir_dict["is_etalon"]:
+				self._logger.debug(f"edit_dir_api: got new is_etalon: {dir_dict['is_etalon']}")
+				target_dir.is_etalon = dir_dict["is_etalon"]
+			if target_dir.comment != dir_dict["comment"]:
+				self._logger.debug(f"edit_dir_api: got new comment: {dir_dict['comment']}")
+				target_dir.comment = dir_dict["comment"]
+			if target_dir.enabled != dir_dict["enabled"]:
+				self._logger.debug(f"edit_dir_api: got new enabled: {dir_dict['enabled']}")
+				target_dir.enabled = dir_dict["enabled"]
+			self.dir_manager.update(target_dir)
 			return render_template("blank_page.html")
 		
 		
@@ -445,7 +458,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		@web_app.route("/api/compile-dir", methods = ["GET", "POST"])
 		def compile_dir_api():
-			input_dir_list, path_to_new_dir = get_dir_objects_from_request_compile(request, get_by_id = self.dir_manager.get_by_id)
+			input_dir_list, path_to_new_dir = get_dir_objects_and_new_dir_from_request(request, get_by_id = self.dir_manager.get_by_id)
 			if len(input_dir_list) == 0:
 				self._logger.error("compile_dir_api: got empty input dir list, aborting compiling")
 				return render_template("blank_page.html", page_text = "Got empty dir list after parsing")
