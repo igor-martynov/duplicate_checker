@@ -521,11 +521,11 @@ class FindCopiesTask(BaseTask):
 			self.save_task()
 			return
 		try:
-			progress_increase = (1 / total_files) if total_files != 0 else 1.0
+			progress_increment = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
 				self._logger.debug(f"run: checking file {f.full_path}... progress: {self.progress}")
 				candidates = self._file_manager.find_copies(f, session = _session)
-				self.progress += progress_increase
+				self.progress += progress_increment
 				for c in candidates:
 					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
 						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self.progress}")
@@ -812,13 +812,14 @@ class SplitDirTask(BaseTask):
 				pass
 			new_dir.files = new_dir_files
 			self.subdirs.append(new_dir)
+			self._dir_manager.update(new_dir)
 			self.progress += progress_increment
 	
 	
-	def save_result(self):
-		self._dir_manager.update(dir_obj)
-		self._logger.debug(f"save_result: saved")
-		self.mark_task_OK()
+	# def save_result(self):
+	# 	self._dir_manager.update(dir_obj)
+	# 	self._logger.debug(f"save_result: saved")
+	# 	self.mark_task_OK()
 	
 	
 	@property
@@ -846,13 +847,14 @@ class SplitDirTask(BaseTask):
 		self.mark_task_start()
 		self.get_dict_of_subdirs()
 		self.create_subdirs()
-		self.save_result()
-		self.mark_task_end()
+		# self.save_result()
 		if len(self.subdirs) != 0:
 			self.mark_result_OK()
 		else:
 			self.mark_result_failure()
 		self.generate_report()
+		self.mark_task_end()
+		self.mark_task_OK()
 		self.save_task()
 		
 
@@ -1020,7 +1022,7 @@ class DeleteDirTask(BaseTask):
 				self._file_manager.delete(f)
 				self.progress += progress_increment
 			self._dir_manager.delete(self.target_dir)
-			self._logger.debug(f"run: directory deleted")
+			self._logger.debug(f"run: complete, directory deleted")
 			self.mark_result_OK()
 			self.mark_task_OK()
 		except Exception as e:
@@ -1048,10 +1050,11 @@ class DeleteFilesTask(BaseTask):
 	
 	def run(self):
 		self.mark_task_start()
-		
 		try:
+			progress_increment = 1 / len(self.files_to_delete) in len(self.files_to_delete) != 0 else 0
 			for f in self.files_to_delete:
 				self._file_manager.delete(f)
+				self.progress += progress_increment
 			self.mark_task_OK()
 			self.mark_result_OK()
 		except Exception as e:
