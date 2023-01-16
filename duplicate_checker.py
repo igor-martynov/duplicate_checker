@@ -423,8 +423,13 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			dir_dict = get_dir_dict_from_request(request)
 			target_dir = self.dir_manager.get_by_id(dir_dict["id"])
 			if target_dir.full_path != dir_dict["full_path"]:
-				self._logger.debug(f"edit_dir_api: got new full_path: {dir_dict['full_path']} but this is unsupported")
-				# target_dir.full_path = dir_dict["full_path"]
+				self._logger.debug(f"edit_dir_api: got new full_path: {dir_dict['full_path']}")
+				target_dir.full_path = dir_dict["full_path"]
+				# new_subpath = os.path.abspath(os.path.dirname(target_dir.full_path))
+				new_subpath = dir_dict["full_path"]
+				for f in target_dir.files:
+					f.full_path = os.path.join(new_subpath, os.path.basename(f.full_path))
+					self._logger.debug(f"edit_dir_api: edited file {f.id} - {f.full_path}")
 			if target_dir.is_etalon != dir_dict["is_etalon"]:
 				self._logger.debug(f"edit_dir_api: got new is_etalon: {dir_dict['is_etalon']}")
 				target_dir.is_etalon = dir_dict["is_etalon"]
@@ -435,6 +440,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				self._logger.debug(f"edit_dir_api: got new enabled: {dir_dict['enabled']}")
 				target_dir.enabled = dir_dict["enabled"]
 			self.dir_manager.update(target_dir)
+			
 			return render_template("blank_page.html")
 		
 		
