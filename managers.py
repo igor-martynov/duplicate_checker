@@ -400,7 +400,7 @@ class TaskManager(BaseManager):
 		def wait_till_task_completes(task):
 			while task.running:
 				time.sleep(self.SLEEP_BETWEEN_CHECKS)
-				# task.save_task()
+				task.save_task()
 			
 		def autostart_thread():
 			time.sleep(self.SLEEP_BETWEEN_CHECKS)

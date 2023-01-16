@@ -1051,7 +1051,7 @@ class DeleteFilesTask(BaseTask):
 	def run(self):
 		self.mark_task_start()
 		try:
-			progress_increment = 1 / len(self.files_to_delete) in len(self.files_to_delete) != 0 else 0
+			progress_increment = 1 / len(self.files_to_delete) if len(self.files_to_delete) != 0 else 0
 			for f in self.files_to_delete:
 				self._file_manager.delete(f)
 				self.progress += progress_increment
