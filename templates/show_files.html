@@ -17,7 +17,7 @@
 			<br>
 			<br>
 			<br>
-			{% for f in files %} <a href="/ui/show-file/{{f.id}}" title="show">{{f.full_path}}</a> [<a href="/ui/delete-file/{{f.id}}" title="delete">delete</a>] [<a href="/ui/edit-file/{{f.id}}" title="edit">edit</a>] <br><br> {% endfor %}<br>
+			{% for f in files %} <a href="/ui/show-file/{{f.id}}" title="show">{{f.full_path}}</a> [<a href="/api/delete-file?file_id={{f.id}}" title="delete">delete</a>] [<a href="/ui/edit-file/{{f.id}}" title="edit">edit</a>] <br><br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

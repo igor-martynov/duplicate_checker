@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-01-16
+# 2023-01-19
 
 
-__version__ = "0.9.9"
+__version__ = "0.9.10"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -47,22 +47,6 @@ import urllib.parse
 
 
 """DuplicateChecker
-
-What app should do:
-	1. Calculate checksums of all files in dir
-	2. Store checksums of files in dir. Files in one dir may be:
-		a) totally different
-		b) equal checkums but different names - file1.jpg and file1-2.jpg
-		c) equal names but different checksums - file1.jpg and edited/file1.jpg
-		d) equal checksums and names - file1.jpg and copy/file1.jpg
-	3. Files on different dirs can be:
-		a) Comepletely identical - the same full_path, name, checksum - but still they are individual 
-		b) equal checkums but different names - file1.jpg and file1-2.jpg - copies of one file
-		c) equal names but different checksums - file1.jpg and file1.jpg - the same file
-		d) totally different
-		
-	
-	
 """
 
 	

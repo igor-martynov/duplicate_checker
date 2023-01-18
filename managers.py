@@ -228,12 +228,15 @@ class DirManager(BaseManager):
 		return res
 	
 	
-	def get_by_id(self, _id, session = None):
+	def get_by_id(self, _id, session = None, full = True):
 		if session is None:
 			_session = self.get_session()
 		else:
 			_session = session
-		res = _session.query(Directory).options(joinedload(Directory.files)).get(_id)
+		if full:
+			res = _session.query(Directory).options(joinedload(Directory.files)).get(_id)
+		else:
+			res = _session.query(Directory).get(_id)
 		if session is None:
 			self.close_session(_session, commit = False)
 		return res
@@ -359,7 +362,7 @@ class TaskManager(BaseManager):
 		if session is None:
 			self.close_session(_session, commit = True)
 		self.current_tasks.append(task)
-		self._logger.debug(f"create_task: task added: {task.descr}")
+		self._logger.debug(f"create_task: new task added: {task.descr}")
 	
 	
 	def start_task(self, task):

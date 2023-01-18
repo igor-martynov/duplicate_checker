@@ -17,7 +17,7 @@
 			ID: {{ file.id }}<br>
 			Full path: {{ file.full_path }}<br>
 			Name: {{ file._name }}<br>
-			Directory: {{ file.dir.full_path }}<br>
+			Directory: {{ file.dir.url_html_code | safe }}<br>
 			
 			<br>
 			Checksum: {{file.checksum}}<br>

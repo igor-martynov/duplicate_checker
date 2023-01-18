@@ -126,7 +126,7 @@ class BaseTask(TaskRecord):
 			_session = session
 		try:
 			res = _session.merge(self)
-			self._logger.debug(f"save_task: merged to session")
+			self._logger.debug(f"save_task: merged to session and saved to db")
 			if session is None:
 				self.close_session(_session, commit = True)
 		except Exception as e:
@@ -263,6 +263,7 @@ class AddDirTask(BaseTask):
 			# new_dir = self._create_directory_and_files(result, session = _session)
 			
 			# now all slow processes are complete
+			self._logger.debug("run: will create new files and dir")
 			new_dir = self._create_directory_and_files(result)
 			# _session = self.get_session()
 			if self.save_results:
@@ -867,15 +868,14 @@ class CompileDirTask(BaseTask):
 		self.path_to_new_dir = path_to_new_dir
 		self.new_dir = None
 		self.input_dirs = input_dir_list
-		self.all_files_list = [file for idir in self.input_dirs for file in idir.files] # TODO: check this
-		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}")
-		self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
+		self.all_files_list = [file for idir in self.input_dirs for file in idir.files].copy() # TODO: check this
+		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}, all_files_list: {len(self.all_files_list)} items.")
+		# self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
 		self.unique_files = []
 		self.renamed_files = []
 		self.dry_run = False
 		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p"
 		self.MKDIR_COMMAND = "/usr/bin/mkdir -p" if os.path.isfile("/usr/bin/mkdir") else "/bin/mkdir -p"
-		pass
 	
 	
 	@property
@@ -883,13 +883,13 @@ class CompileDirTask(BaseTask):
 		return f"Task {self._type} for new dir {self.path_to_new_dir}"
 	
 	
-	def get_unique_file_list(self):
+	def get_unique_file_list(self, session = None):
 		unique_checksums = set([f.checksum for f in self.all_files_list])
 		self._logger.info(f"get_unique_file_list: got {len(unique_checksums)} unique_checksums")
 		self._logger.debug(f"get_unique_file_list: unique_checksums are: {unique_checksums}")
 		# algo take 1 - simply by checksums
 		for uc in unique_checksums:
-			for file in self._file_manager.get_by_checksum(uc):
+			for file in self._file_manager.get_by_checksum(uc, session = session):
 				if file.dir in self.input_dirs:
 					self.unique_files.append(file)
 					self._logger.debug(f"get_unique_file_list: added file {file.full_path} to target list because its dir {file.dir.full_path} exist in input dir list")
@@ -899,6 +899,8 @@ class CompileDirTask(BaseTask):
 	
 	
 	def check_all_files_exist(self):
+		if len(self.unique_files) == 0:
+			self._logger.error("check_all_files_exist: unique_files list is empty!")
 		for f in self.unique_files:
 			if not self.dry_run and not os.path.isfile(f.full_path):
 				self._logger.error(f"check_all_files_exist: file {f.full_path} is unavailable now, aborting")
@@ -964,10 +966,12 @@ class CompileDirTask(BaseTask):
 	
 	
 	def run(self):
-		self.mark_task_start()
-		self.get_unique_file_list()
+		_session = self.get_session()
+		for d in self.input_dirs:
+			_session.add(d)
+		self.get_unique_file_list(session = _session)
 		if self.check_all_files_exist() is True:
-			self._logger.debug("run: all files exist")
+			self._logger.debug("run: all files exist, will continue")
 		else:
 			self._logger.error(f"run: aborting dir compilation due to missing file.")
 			self.mark_task_FAIL()
@@ -980,6 +984,7 @@ class CompileDirTask(BaseTask):
 			self._logger.error("run: got zero length command list. Unexpected. returning.")
 			self.mark_result_failure()
 			return 
+		self.close_session(_session)
 		# run all commands
 		result = self.run_commands(commands)
 		if result:
