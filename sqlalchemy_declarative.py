@@ -53,7 +53,17 @@ class Directory(DeclarativeBase):
 	
 	@property
 	def dict_for_json(self):
-		return {"id": self.id, "full_path": self.full_path, "files": [f.id for f in self.files], "is_etalon": self.is_etalon}
+		return {"id": self.id,
+		"is_etalon": self.is_etalon,
+		"date_added": self.date_added,
+		"date_checked": self.date_checked,
+		"name": self.name,
+		"full_path": self.full_path,
+		"comment": self.comment,
+		"drive": self.drive,
+		"host": self.host,
+		"files_ids": [f.id for f in self.files],
+		"is_etalon": self.is_etalon}
 		
 
 
@@ -92,7 +102,14 @@ class File(DeclarativeBase):
 	
 	@property
 	def dict_for_json(self):
-		return {"id": self.id, "full_path": self.full_path, "checksum": self.checksum, "dir": self.dir.id, "is_etalon": self.is_etalon}
+		return {"id": self.id,
+		"is_etalon": self.is_etalon,
+		"date_added": self.date_added,
+		"date_checked": self.date_checked,
+		"full_path": self.full_path,
+		"checksum": self.checksum,
+		"comment": self.comment,
+		"dir_id": self.dir.id}
 	
 
 
@@ -132,7 +149,21 @@ class TaskRecord(DeclarativeBase):
 
 	@property
 	def dict_for_json(self):
-		return {"id": self.id, "task_type": self.task_type, "date_start": self.date_start, "date_end": self.date_end}
+		return {"id": self.id,
+		"task_type": self.task_type,
+		"date_start": self.date_start,
+		"date_end": self.date_end,
+		"target_dir_id": self.target_dir_id,
+		"target_dir_full_path": self.target_dir_full_path,
+		"target_file_list": self.target_file_list,
+		"pending": self.pending,
+		"running": self.running,
+		"complete": self.complete,
+		"OK": self.OK,
+		"error_message": self.error_message,
+		"result_OK":  self.result_OK,
+		"report": self.report,
+		"progress": self.progress}
 	
 	
 	@property		
