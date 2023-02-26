@@ -32,6 +32,7 @@ from tasks import *
 
 """
 
+All managers: BaseManager, FileManager, DirManager, TaskManager, 
     
 
 """
@@ -39,7 +40,7 @@ from tasks import *
 
 
 class BaseManager(object, metaclass = MetaSingleton):
-	"""BaseManager - base class for all managers. """
+	"""BaseManager - base class for all managers"""
 	# TODO: all class methods to abstract
 	
 	def __init__(self, logger = None):
@@ -117,10 +118,7 @@ class BaseManager(object, metaclass = MetaSingleton):
 
 
 class FileManager(BaseManager):
-	"""FileManager
-	
-	responsible for all file operations
-	"""
+	"""FileManager - responsible for all file operations (CRUD and other)"""
 	
 	def __init__(self, logger = None):
 		super(FileManager, self).__init__(logger = logger)
@@ -209,8 +207,7 @@ class FileManager(BaseManager):
 	
 
 class DirManager(BaseManager):
-	"""DirManager
-	responsible for all directory operations"""
+	"""DirManager - responsible for all directory operations (CRUD and other)"""
 	
 	def __init__(self, logger = None):
 		super(DirManager, self).__init__(logger = logger)
@@ -283,7 +280,7 @@ class DirManager(BaseManager):
 
 
 class TaskManager(BaseManager):
-	"""TaskManager - create and manage tasks"""
+	"""TaskManager - create, run and manage tasks"""
 	
 	def __init__(self,
 		logger = None,
@@ -293,16 +290,12 @@ class TaskManager(BaseManager):
 		ignore_duplicates = False,
 		task_autostart = False):
 		super(TaskManager, self).__init__(logger = logger)
-		
 		self._file_manager = file_manager
 		self._dir_manager = dir_manager
-		
 		self.checksum_algorithm = checksum_algorithm
 		self.ignore_duplicates = ignore_duplicates
-		
 		self.current_tasks = [] # only tasks from this session
 		self.autostart_enabled = task_autostart
-		
 		self.__thread = None
 		self.SLEEP_BETWEEN_TASKS = 3
 		self.SLEEP_BETWEEN_CHECKS = 5
@@ -534,7 +527,8 @@ class TaskManager(BaseManager):
 
 
 class DBManager(object, metaclass = MetaSingleton):
-	"""docstring for DBManager"""
+	"""DBManager - manage DB sessions, DB operations, ORM and usefull utilities"""
+	
 	def __init__(self,
 		db_file = None,
 		logger = None):
@@ -583,12 +577,13 @@ class DBManager(object, metaclass = MetaSingleton):
 		self._logger.debug("init_DB_ORM: init complete")
 	
 	
-	def get_session(self, expire_on_commit = True):
+	def get_session(self, expire_on_commit = True, nonblocking = False):
 		from sqlalchemy.orm import sessionmaker
 		while self.session_in_use:
 			self._logger.debug(f"get_session: waiting for lock on DB session... sessions: {self._sessions}")
 			time.sleep(self.WAIT_LOCK_DELAY)
-		self.session_in_use = True
+		if not nonblocking:
+			self.session_in_use = True
 		DBSession = sessionmaker(autocommit = False, autoflush = False)
 		DBSession.bind = self._engine
 		_session = DBSession()

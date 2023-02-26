@@ -25,6 +25,8 @@ from base import *
 from sqlalchemy_declarative import TaskRecord
 
 
+"""All tasks are here"""
+
 
 class BaseTask(TaskRecord):
 	"""BaseTask - base class for all tasks"""
@@ -40,10 +42,6 @@ class BaseTask(TaskRecord):
 		self.get_session = db_manager.get_session
 		self.close_session = db_manager.close_session
 		self._type = self.__class__.__name__
-		# self._prev_progress = None
-		# self._prev_datetime = None
-		# self._prev_ETA_S = 0
-		
 		self.save_results = True
 		self.__result_html_complete = False
 	
@@ -68,7 +66,7 @@ class BaseTask(TaskRecord):
 	
 	
 	def start(self):
-		"""start self.run() in parallel thread. async, will return before result is ready"""
+		"""start self.run() in parallel subthread. Async, will return before result is ready"""
 		self._logger.debug("start: starting task")
 		self.__thread = threading.Thread(target = self.run)
 		self.mark_task_start()
@@ -155,9 +153,7 @@ class BaseTask(TaskRecord):
 	
 
 class AddDirTask(BaseTask):
-	"""Task to add new dir.
-	
-	"""
+	"""Task to add new dir. Dir existance will be checked"""
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
 		super(AddDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -301,9 +297,7 @@ class AddDirTask(BaseTask):
 
 
 class CompareDirsTask(BaseTask):
-	"""Task to compare two dirs.
-	
-	"""
+	"""Task to compare two dirs"""
 	
 	def __init__(self, dir_a, dir_b, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(CompareDirsTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -316,7 +310,6 @@ class CompareDirsTask(BaseTask):
 		self.files_only_on_b = []
 		self.equal_names_diff_checsums = []
 		self.dirs_are_equal = None
-		pass
 	
 	
 	@property
@@ -486,7 +479,7 @@ class CompareDirsTask(BaseTask):
 	
 	
 class FindCopiesTask(BaseTask):
-	"""Task to find copies of files of one dir"""
+	"""Task to find copies of all files of one dir. All other dirs will be searched for copies."""
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(FindCopiesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -620,7 +613,7 @@ class FindCopiesTask(BaseTask):
 
 
 class CheckDirTask(BaseTask):
-	"""CheckDirTask - task to check if dir in db is actual"""
+	"""CheckDirTask - task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
 		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -759,7 +752,7 @@ class CheckDirTask(BaseTask):
 			return 0.0
 	
 
-# TODO: under development
+
 class SplitDirTask(BaseTask):
 	"""Task to split dir into individual subdirs and add them to the DB"""
 	
@@ -860,9 +853,9 @@ class SplitDirTask(BaseTask):
 		
 
 
-# TODO: check this
 class CompileDirTask(BaseTask):
-	"""docstring for CompileDirTask"""
+	"""Task to compile new dir with unique files of input dirs"""
+	
 	def __init__(self, path_to_new_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, input_dir_list = []):
 		super(CompileDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.path_to_new_dir = path_to_new_dir
@@ -981,7 +974,7 @@ class CompileDirTask(BaseTask):
 		# create copy commands list
 		commands = self.create_copy_commands()
 		if len(commands) == 0:
-			self._logger.error("run: got zero length command list. Unexpected. returning.")
+			self._logger.error("run: got zero length command list. Unexpected. Returning None.")
 			self.mark_result_failure()
 			return 
 		self.close_session(_session)

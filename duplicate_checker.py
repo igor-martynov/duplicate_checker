@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-01-19
+# 2023-02-26
 
 
 __version__ = "0.9.10"
@@ -131,9 +131,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 	
 	def run_web_app(self):
 		web_app = Flask(__name__)
-		web_app.secret_key = self._config.get("web", "secret")
-		# web_app.wsgi_app = ProfilerMiddleware(web_app.wsgi_app)
-		
+		web_app.secret_key = self._config.get("web", "secret")		
 		
 		
 		@web_app.route("/ui/", methods = ["GET"])
@@ -379,7 +377,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = "DB backup FAILED")
 		
 		
-		# TODO: under heavy development
 		@web_app.route("/ui/edit-dir/<int:dir_id>", methods = ["GET", "POST"])
 		def edit_dir(dir_id):
 			target_dir = self.dir_manager.get_by_id(dir_id)
@@ -401,7 +398,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				return render_template("edit_dir.html", dir = target_dir)
 		
 		
-		# TODO: under construction
 		@web_app.route("/api/edit-dir", methods = ["GET"])
 		def edit_dir_api():
 			dir_dict = get_dir_dict_from_request(request)
@@ -409,7 +405,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			if target_dir.full_path != dir_dict["full_path"]:
 				self._logger.debug(f"edit_dir_api: got new full_path: {dir_dict['full_path']}")
 				target_dir.full_path = dir_dict["full_path"]
-				# new_subpath = os.path.abspath(os.path.dirname(target_dir.full_path))
 				new_subpath = dir_dict["full_path"]
 				for f in target_dir.files:
 					f.full_path = os.path.join(new_subpath, os.path.basename(f.full_path))
@@ -424,7 +419,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				self._logger.debug(f"edit_dir_api: got new enabled: {dir_dict['enabled']}")
 				target_dir.enabled = dir_dict["enabled"]
 			self.dir_manager.update(target_dir)
-			
 			return render_template("blank_page.html")
 		
 		
@@ -472,33 +466,30 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return target_file.full_path
 		
 			
-		# get_file_by_id
-		
-		
-		
-		# delete_files_api
-		
-		
 		# get_running_task
-		@web_app.route("/api/get_running_task_id", methods = ["GET"])
+		@web_app.route("/api/get_running_task_to_js", methods = ["GET"])
 		def get_running_task_id_api():
-			return self.task_manager.current_running_task.id
-			pass
+			target_task = self.task_manager.current_running_task
+			if target_task is None:
+				return ""
+			return json.dumps(target_task.dict_for_json)
 		
 		
 		# api_task_json
-		@web_app.route("/api/get_task_js", methods = ["GET"])
+		@web_app.route("/api/get_task_to_js", methods = ["GET"])
 		def get_task_js_api():
 			target_task = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)[0]
-			return target_task.dict_for_json
-			pass
-			
+			if target_task is None:
+				return ""
+			return json.dumps(target_task.dict_for_json)
 		
 		
 		# get_file_by_id_to_js
 		@web_app.route("/api/get_file_by_id_to_js", methods = ["GET"])
 		def get_file_by_id_to_js():
 			target_file = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)[0]
+			if target_file is None:
+				return ""
 			return json.dumps(target_file.dict_for_json)
 			
 		
@@ -506,21 +497,9 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		@web_app.route("/api/get_dir_by_id_to_js", methods = ["GET"])
 		def get_dir_by_id_to_js():
 			target_dir = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)[0]
+			if target_dir is None:
+				return ""
 			return json.dumps(target_dir.dict_for_json)
-		
-		
-		@web_app.route("/api/get_task_descr", methods = ["GET"])
-		def get_task_descr_api():
-			target_task_id = request.args.get("task_id")
-			target_task = self.task_manager.tasks[target_task_id]
-			return target_task.descr
-		
-		
-		# TODO: remove
-		@web_app.route("/api/get_running_task_descr", methods = ["GET"])
-		def get_running_task_descr_api():
-			crt = self.task_manager.current_running_task
-			return "" if crt is None else crt.descr
 		
 		
 		
@@ -531,8 +510,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		print("starting web interface...\n")
 		web_app.run(host = self.addr, port = self.port, use_reloader = False)
-		pass
-		
 		
 
 	
@@ -541,7 +518,6 @@ if __name__ == "__main__":
 	if "--help" in sys.argv[1:]:
 		print("DuplicateChecker web app")
 		print("	--db-file /path/to/db")
-		# print("--web-app")
 		print("")
 		exit(0)
 	
@@ -555,10 +531,9 @@ if __name__ == "__main__":
 		DB_FILE = sys.argv[sys.argv.index("--db-file") + 1]
 		print(f"Using DB file from command arguments: {DB_FILE}")
 	else:
-		# DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)),"duplicate_checker.db")
 		DB_FILE = None
 	
 
 	dc = DuplicateCheckerFlask(db_file = DB_FILE)
 	dc.run_web_app()
-	pass
+	

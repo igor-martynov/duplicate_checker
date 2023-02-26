@@ -138,6 +138,7 @@ class TaskRecord(DeclarativeBase):
 	_prev_datetime = None
 	_prev_ETA_S = 0
 	
+	
 	@property
 	def url(self):
 		return f"/ui/show-task/{self.id}"
@@ -150,7 +151,7 @@ class TaskRecord(DeclarativeBase):
 	@property
 	def dict_for_json(self):
 		return {"id": self.id,
-		"task_type": self.task_type,
+		"_type": self._type,
 		"date_start": self.date_start,
 		"date_end": self.date_end,
 		"target_dir_id": self.target_dir_id,
