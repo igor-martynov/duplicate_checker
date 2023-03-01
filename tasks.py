@@ -25,7 +25,7 @@ from base import *
 from sqlalchemy_declarative import TaskRecord
 
 
-"""All tasks are here"""
+"""All tasks are in this file"""
 
 
 class BaseTask(TaskRecord):
@@ -314,7 +314,7 @@ class CompareDirsTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for {self.dir_a.full_path} and {self.dir_b.full_path}"
+		return f"Task {self._type} for dir A {self.dir_a} and dir B {self.dir_b}"
 	
 	
 	@property
@@ -490,11 +490,13 @@ class FindCopiesTask(BaseTask):
 		self.no_copies_list = [] # list of files without copies
 		self.dir_has_full_copy = False
 		self.full_copies_list = []
+		self.ignore_same_fullpath = True # do not count files with the same path as copies
+		
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for {self.dir.full_path}"
+		return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def run(self):
@@ -518,10 +520,12 @@ class FindCopiesTask(BaseTask):
 			progress_increment = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
 				self._logger.debug(f"run: checking file {f.full_path}... progress: {self.progress}")
-				candidates = self._file_manager.find_copies(f, session = _session)
+				candidates = self._file_manager.find_copies(f, session = _session, ignore_same_fullpath = self.ignore_same_fullpath)
+				if len(candidates) == 0:
+					self._logger.debug(f"run: got no candidates for file {f}")
 				self.progress += progress_increment
 				for c in candidates:
-					if c.dir == self.dir or c.dir.full_path == self.dir.full_path:
+					if c.dir == self.dir or (c.dir.full_path == self.dir.full_path and self.ignore_same_fullpath is True):
 						self._logger.debug(f"run: ignoring candidate {c.id} - {c.full_path} because it has the same dir {c.dir.full_path}. progress: {self.progress}")
 						continue
 					if f.name == c.name:
@@ -716,7 +720,7 @@ class CheckDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for dir {self.dir.full_path}"
+		return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def generate_report(self):
@@ -766,7 +770,7 @@ class SplitDirTask(BaseTask):
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for dir {self.dir_obj.full_path}"
+		return f"Task {self._type} for dir {self.dir_obj}"
 	
 	
 	def get_dict_of_subdirs(self):
@@ -997,17 +1001,27 @@ class CompileDirTask(BaseTask):
 
 class DeleteDirTask(BaseTask):
 	"""This task implements dir deletion via tasks mechanism, thus improving data integrity and reducing risks of race conditions"""
+	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(DeleteDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir = target_dir
 		self.target_dir_full_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
+		self.deleted_files = []
 	
 	
 	@property
 	def descr(self):
-		return f"Task {self._type} for dir {self.target_dir_full_path}"
-		
+		return f"Task {self._type} for dir id: {self.target_dir_id} - {self.target_dir_full_path}"
+	
+	
+	def generate_report(self):
+		self.report = f"{self.descr}" + "\n"
+		self.report += f"Dir: id {self.target_dir_id}, {self.target_dir_full_path}"
+		self.report += f"Deleted files: {len(self.deleted_files)}" + "\n"
+		for df in self.deleted_files:
+			self.report += df + "\n"
+	
 	
 	# @cProfile_wrapper
 	def run(self):
@@ -1018,6 +1032,7 @@ class DeleteDirTask(BaseTask):
 			progress_increment = 1 / num_files if num_files != 0 else 1.0
 			for f in self.target_dir.files:
 				self._file_manager.delete(f)
+				self.deleted_files.append(str(f))
 				self.progress += progress_increment
 			self._dir_manager.delete(self.target_dir)
 			self._logger.debug(f"run: complete, directory deleted")

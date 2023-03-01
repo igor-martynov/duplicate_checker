@@ -3,6 +3,8 @@
 	<head>
 		<meta charset="utf-8">
 		<link rel="stylesheet" href="{{ url_for('static', filename='duplicate_checker.css') }} ">
+		<script type="text/javascript" src="{{ url_for('static', filename='base_functions.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static', filename='show_all_tasks.js') }}"></script>
 	</head>
 	
 	<body> 
@@ -13,7 +15,7 @@
 			<br>
 			<br>
 			Tasks:<br>
-			[<a href="/ui/start-autostart" title="start autostart">start autostart</a>] [<a href="/ui/stop-autostart" title="disable task autostart, current task will continue to run">stop autostart</a>] [<a href="/ui/delete-all-tasks" title="will delete all tasks except current">delete all tasks</a>]<br>
+			[<a href="/ui/start-autostart" title="start autostart">start autostart</a>] [<a href="/ui/stop-autostart" title="disable task autostart, current task will continue to run">stop autostart</a>] [<a href="/ui/delete-all-tasks" title="will delete all tasks except current">delete all</a>]<br>
 			autostart: {{ autostart }}, running: {{ is_running }}, current task: {{ current_task }}<br>
 			tasks in current session: {{ current_task_list | length }}<br>
 			<br>

@@ -502,6 +502,25 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return json.dumps(target_dir.dict_for_json)
 		
 		
+		@web_app.route("/api/enable-dirs", methods = ["GET"])
+		def enable_dirs_api():
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
+			for target_dir in target_dir_list:
+				target_dir.enabled = True
+				self.dir_manager.update(target_dir)
+			return redirect("/ui/actions")
+			pass
+		
+		
+		@web_app.route("/api/disable-dirs", methods = ["GET"])
+		def disable_dirs_api():
+			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
+			for target_dir in target_dir_list:
+				target_dir.enabled = False
+				self.dir_manager.update(target_dir)
+			return redirect("/ui/actions")
+		
+		
 		
 		
 		web_app.jinja_env.filters["empty_on_None"] = empty_on_None

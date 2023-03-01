@@ -19,16 +19,18 @@
 			<label for="name">Actions on dirs:</label>
 			<div class="scroll_list scroll_list_height"></div>
 				{% for d in dirs %}
-				<label><input type="checkbox" name="dir_id_{{ d.id }}" class="dir_checkbox" value="dir_id_{{ d.id }}">dir {{d.id}} - {{ d.full_path }}</label><br>
+				<label><input type="checkbox" name="dir_id_{{ d.id }}" class="dir_checkbox" value="dir_id_{{ d.id }}">dir {{d.id}} - [{% if d.enabled %}&#x2705;{% else %}&#x274c;{% endif %}] - {{ d.full_path }}</label><br>
 				{% endfor %}
 			<br>
 			<br>
-			<input type="submit" value="Compare dirs" onclick="compare_dirs();">
-			<input type="submit" value="Delete dirs" onclick="delete_dirs();">
-			<input type="submit" value="Check dirs" onclick="check_dirs();">
+			<input type="submit" value="Compare" onclick="compare_dirs();">
+			<input type="submit" value="Delete" onclick="delete_dirs();">
+			<input type="submit" value="Check" onclick="check_dirs();">
 			<input type="submit" value="Find copies" onclick="find_copies();">
-			<input type="submit" value="Split dirs" onclick="split_dirs();">
+			<input type="submit" value="Split" onclick="split_dirs();">
 			<input type="submit" value="Compile new dir" onclick="compile_dir();">
+			<input type="submit" value="Enable" onclick="enable_dirs();">
+			<input type="submit" value="Disable" onclick="disable_dirs();">
 		<br>
 		</div>
     

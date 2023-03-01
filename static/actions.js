@@ -43,6 +43,7 @@ function find_copies() {
 	document.location.href = "/api/find-copies?" + arg_str;
 }
 
+
 function split_dirs() {
 	var arg_str = selected_dirs_to_args();
 	document.location.href = "/api/split-dirs?" + arg_str;
@@ -72,4 +73,17 @@ function delete_files() {
 		document.location.href = "/actions"
 	}
 }
+
+
+function enable_dirs() {
+	var arg_str = selected_dirs_to_args();
+	document.location.href = "/api/enable-dirs?" + arg_str;
+}
+
+
+function disable_dirs() {
+	var arg_str = selected_dirs_to_args();
+	document.location.href = "/api/disable-dirs?" + arg_str;
+}
+
 

@@ -40,16 +40,22 @@ class Directory(DeclarativeBase):
 	drive = Column(String, nullable = True)
 	host = Column(String, nullable = True)
 	files = relationship("File", back_populates = "dir")
+	_str = f"id: {id}, {full_path}"
 	
 	
 	@property
 	def url(self):
 		return f"/ui/show-dir/{self.id}"
 	
+	
 	@property
 	def url_html_code(self):
 		return f"<a href='{self.url}' title='show dir'>{self.id} - {self.full_path}</a>"
-
+	
+	
+	def __str__(self):
+		return self._str
+	
 	
 	@property
 	def dict_for_json(self):
@@ -83,12 +89,17 @@ class File(DeclarativeBase):
 	enabled = Column(Boolean, nullable = False, default = True)
 	dir_id = Column(Integer, ForeignKey("dirs.id"))
 	dir = relationship("Directory", back_populates = "files")
+	_str = f"id: {id}, {full_path}, checksum: {checksum}"
 	
 	
 	@property
 	def name(self):
 		return os.path.basename(self.full_path) if (self.full_path is not None and len(self.full_path) != 0) else None\
-		
+	
+	
+	def __str__(self):
+		return self._str
+	
 	
 	@property
 	def url(self):

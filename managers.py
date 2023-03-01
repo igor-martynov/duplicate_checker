@@ -142,9 +142,9 @@ class FileManager(BaseManager):
 		else:
 			_session = session
 		if idir is None:
-			res = _session.query(File).options(joinedload(File.dir)).filter(File.checksum == checksum).all()
+			res = _session.query(File).options(joinedload(File.dir)).filter(File.checksum == checksum, File.dir.has(Directory.enabled == True)).all()
 		else:
-			res = _session.query(File).options(joinedload(File.dir)).filter(File.checksum == checksum, File.dir_id == idir.id).all()
+			res = _session.query(File).options(joinedload(File.dir)).filter(File.checksum == checksum, File.dir_id == idir.id, File.dir.has(Directory.enabled == True)).all()
 		if session is None:
 			self.close_session(_session, commit = False)
 		return res
@@ -196,9 +196,9 @@ class FileManager(BaseManager):
 		else:
 			_session = session
 		if ignore_same_fullpath:
-			res = _session.query(File).filter(File.checksum == _file.checksum, File.full_path != _file.full_path).all()
+			res = _session.query(File).filter(File.checksum == _file.checksum, File.full_path != _file.full_path, File.dir.has(Directory.enabled == True)).all()
 		else:
-			res = _session.query(File).filter(File.checksum == _file.checksum).all()
+			res = _session.query(File).filter(File.checksum == _file.checksum, File.dir.has(Directory.enabled == True)).all()
 		if session is None:
 			self.close_session(_session, commit = False)
 		self._logger.debug(f"find_copies: searched for copies of file {_file.full_path}, found: {len(res)}")
@@ -584,11 +584,13 @@ class DBManager(object, metaclass = MetaSingleton):
 			time.sleep(self.WAIT_LOCK_DELAY)
 		if not nonblocking:
 			self.session_in_use = True
-		DBSession = sessionmaker(autocommit = False, autoflush = False)
-		DBSession.bind = self._engine
-		_session = DBSession()
 		if expire_on_commit is False:
-			_session.expire_on_commit = False
+			DBSession = sessionmaker(bind = self._engine, autocommit = False, autoflush = False, expire_on_commit = False)
+			self._logger.debug(f"get_session: session inited WITH expire_on_commit = False")
+		else:
+			DBSession = sessionmaker(bind = self._engine, autocommit = False, autoflush = False)
+			self._logger.debug(f"get_session: session inited without expire_on_commit = False")
+		_session = DBSession()
 		_session.begin()
 		self._sessions.append(_session)
 		self._logger.debug(f"get_session: session started: {_session}, sessions: {self._sessions}")
@@ -611,7 +613,7 @@ class DBManager(object, metaclass = MetaSingleton):
 	
 	
 	def backup_DB(self):
-		"""will backup DB to file - just copy it to self.DB_FILENAME with appended postfix"""
+		"""will backup DB to another file - just copy it to self.DB_FILENAME with appended postfix"""
 		import shutil
 		DATETIME_FORMAT_STR = "%Y-%m-%d_%H-%M-%S"
 		DEST_FILENAME = self.DB_FILE + f"_backup_{datetime.datetime.now().strftime(DATETIME_FORMAT_STR)}"
