@@ -137,6 +137,7 @@ class TaskRecord(DeclarativeBase):
 	target_dir_id = Column(Integer, ForeignKey("dirs.id"), nullable = True, default = None)
 	target_dir_full_path = Column(String, nullable = True) # some tasks can have only full_path
 	target_file_list = Column(String, nullable = True, default = None)
+	target_freeform = Column(String, nullable = True, default = None)
 	pending = Column(Boolean, nullable = False, default = True)
 	running = Column(Boolean, nullable = True, default = None)
 	complete = Column(Boolean, nullable = True, default = None)

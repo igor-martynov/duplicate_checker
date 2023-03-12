@@ -128,6 +128,7 @@ class FileManager(BaseManager):
 	def get_by_id(self, _id, session = None):
 		if session is None:
 			_session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		res = _session.query(File).options(joinedload(File.dir)).get(_id)
@@ -138,7 +139,8 @@ class FileManager(BaseManager):
 	
 	def get_by_checksum(self, checksum, idir = None, session = None):
 		if session is None:
-			_session = self.get_session()
+			# _session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		if idir is None:
@@ -152,7 +154,8 @@ class FileManager(BaseManager):
 	
 	def get_by_path(self, _path, session = None):
 		if session is None:
-			_session = self.get_session()
+			# _session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		res = _session.query(File).options(joinedload(File.dir)).filter(File.full_path == _path).all()
@@ -227,7 +230,8 @@ class DirManager(BaseManager):
 	
 	def get_by_id(self, _id, session = None, full = True):
 		if session is None:
-			_session = self.get_session()
+			# _session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		if full:
@@ -241,7 +245,8 @@ class DirManager(BaseManager):
 	
 	def get_by_path(self, _path, session = None):
 		if session is None:
-			_session = self.get_session()
+			# _session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		res = _session.query(Directory).filter(Directory.full_path == _path).all()
@@ -315,7 +320,8 @@ class TaskManager(BaseManager):
 	
 	def get_by_id(self, _id, session = None):
 		if session is None:
-			_session = self.get_session()
+			# _session = self.get_session()
+			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		res = _session.query(TaskRecord).get(_id)
@@ -579,10 +585,10 @@ class DBManager(object, metaclass = MetaSingleton):
 	
 	def get_session(self, expire_on_commit = True, nonblocking = False):
 		from sqlalchemy.orm import sessionmaker
-		while self.session_in_use:
-			self._logger.debug(f"get_session: waiting for lock on DB session... sessions: {self._sessions}")
-			time.sleep(self.WAIT_LOCK_DELAY)
 		if not nonblocking:
+			while self.session_in_use:
+				self._logger.debug(f"get_session: waiting for lock on DB session... sessions: {self._sessions}")
+				time.sleep(self.WAIT_LOCK_DELAY)
 			self.session_in_use = True
 		if expire_on_commit is False:
 			DBSession = sessionmaker(bind = self._engine, autocommit = False, autoflush = False, expire_on_commit = False)

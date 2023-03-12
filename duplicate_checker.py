@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-02-26
+# 2023-03-09
 
 
 __version__ = "0.9.10"
@@ -505,19 +505,26 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		@web_app.route("/api/enable-dirs", methods = ["GET"])
 		def enable_dirs_api():
 			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
-			for target_dir in target_dir_list:
-				target_dir.enabled = True
-				self.dir_manager.update(target_dir)
+			try:
+				for target_dir in target_dir_list:
+					target_dir.enabled = True
+					self.dir_manager.update(target_dir)
+				self._logger.debug(f"enable_dirs_api: enabled dirs: {[str(d) for d in target_dir_list]}")
+			except Exception as e:
+				self._logger.error(f"enable_dirs_api: enabling dirs: {[str(d) for d in target_dir_list]} - got error {e}, traceback: {traceback.format_exc()}")
 			return redirect("/ui/actions")
-			pass
 		
 		
 		@web_app.route("/api/disable-dirs", methods = ["GET"])
 		def disable_dirs_api():
 			target_dir_list = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)
-			for target_dir in target_dir_list:
-				target_dir.enabled = False
-				self.dir_manager.update(target_dir)
+			try:
+				for target_dir in target_dir_list:
+					target_dir.enabled = False
+					self.dir_manager.update(target_dir)
+				self._logger.debug(f"disable_dirs_api: disabled dirs: {[str(d) for d in target_dir_list]}")
+			except Exception as e:
+				self._logger.error(f"disable_dirs_api: disabling dirs: {[str(d) for d in target_dir_list]} - got error {e}, traceback: {traceback.format_exc()}")
 			return redirect("/ui/actions")
 		
 		

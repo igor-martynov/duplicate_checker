@@ -28,6 +28,7 @@ from sqlalchemy_declarative import TaskRecord
 """All tasks are in this file"""
 
 
+
 class BaseTask(TaskRecord):
 	"""BaseTask - base class for all tasks"""
 	
@@ -44,6 +45,13 @@ class BaseTask(TaskRecord):
 		self._type = self.__class__.__name__
 		self.save_results = True
 		self.__result_html_complete = False
+		self._MAX_FILES_SHOWN = 100 # will not show files if there are more than that files in dir
+	
+	
+	def reinit(self):
+		"""This method is intended to fill all secondary fields using input fields. Will be different for each task type"""
+		raise NotImplemented
+	
 	
 	
 	def run(self):
@@ -66,7 +74,7 @@ class BaseTask(TaskRecord):
 	
 	
 	def start(self):
-		"""start self.run() in parallel subthread. Async, will return before result is ready"""
+		"""this method will start self.run() in parallel subthread. Async, will return before result is ready"""
 		self._logger.debug("start: starting task")
 		self.__thread = threading.Thread(target = self.run)
 		self.mark_task_start()
@@ -155,7 +163,7 @@ class BaseTask(TaskRecord):
 class AddDirTask(BaseTask):
 	"""Task to add new dir. Dir existance will be checked"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = False, checksum_algorithm = "md5"):
+	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = True, checksum_algorithm = "md5"):
 		super(AddDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.target_dir_full_path = target_dir
 		self.file_list = []
@@ -168,6 +176,10 @@ class AddDirTask(BaseTask):
 		
 		if self._logger is not None:
 			self._logger.debug(f"__init__: init complete with target_dir_full_path {self.target_dir_full_path}")
+	
+	
+	def reinit(self):
+		pass
 	
 	
 	@property
@@ -286,9 +298,14 @@ class AddDirTask(BaseTask):
 		_session = self.get_session()
 		_session.add(self.dir)
 		self.report = f"AddDirTask for {self.target_dir_full_path}, status: {self.state}" + "\n"
-		self.report += f"{len(self.dir.files)} files added:" + "\n"
-		for f in self.dir.files:
-			self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
+		self.report += f"{len(self.dir.files)} files added:" + "\n\n"
+		if len(self.dir.files) > self._MAX_FILES_SHOWN:
+			for f in self.dir.files[0:self._MAX_FILES_SHOWN]:
+				self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
+			self.report += f"and other, total: {len(self.dir.files)} files" + "\n"
+		else:
+			for f in self.dir.files:
+				self.report += f"{f.id}: {f.full_path} - {f.checksum}" + "\n"
 		self.report += "\n\n" + f"Task took: {self.duration}s"
 		self._logger.debug(f"generate_report: report ready")
 		self.close_session(_session)
@@ -299,8 +316,9 @@ class AddDirTask(BaseTask):
 class CompareDirsTask(BaseTask):
 	"""Task to compare two dirs"""
 	
-	def __init__(self, dir_a, dir_b, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+	def __init__(self, dir_a, dir_b, target_freeform = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(CompareDirsTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+		self.target_freeform = target_freeform
 		self.dir_a = dir_a
 		self.dir_b = dir_b
 		self.files_on_both = []
@@ -310,6 +328,12 @@ class CompareDirsTask(BaseTask):
 		self.files_only_on_b = []
 		self.equal_names_diff_checsums = []
 		self.dirs_are_equal = None
+	
+	
+	def reinit(self):
+		self.dir_a = self.dir_manager.get_by_id(int(self.target_freeform.split(";")[0]))
+		self.dir_b = self.dir_manager.get_by_id(int(self.target_freeform.split(";")[1]))
+		pass
 	
 	
 	@property
@@ -481,17 +505,21 @@ class CompareDirsTask(BaseTask):
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of all files of one dir. All other dirs will be searched for copies."""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
+	def __init__(self, target_dir, target_freeform = None, target_dir_id = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
 		super(FindCopiesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.dir = target_dir
-		self.target_dir_id = target_dir.id
+		self.target_dir_id = target_dir_id
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
 		self.copies_dict = {} # key: dir that contains copy, value: 
 		self.no_copies_list = [] # list of files without copies
 		self.dir_has_full_copy = False
-		self.full_copies_list = []
+		self.full_copies_list = [] # copy contains all files of orig
+		self.perfect_copies_list = [] # copy is full_copy and has different path not as original
 		self.ignore_same_fullpath = True # do not count files with the same path as copies
 		
+	
+	def reinit(self):
+		self.target_dir = self.dir_manager.get_by_id(int(self.target_dir_id))
 	
 	
 	@property
@@ -593,6 +621,8 @@ class FindCopiesTask(BaseTask):
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
 				self.dir_has_full_copy = True
 				self.full_copies_list.append(d)
+				if d.full_path != self.dir.full_path:
+					self.perfect_copies_list.append(d)
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
 				self.dir_has_full_copy = True
@@ -608,6 +638,8 @@ class FindCopiesTask(BaseTask):
 		self.report += "\n\n"
 		self._logger.debug("generate_report: stage 3 complete")
 		self.report += "All files:\n"
+		if len(self.file_dict.keys()) > 2 * self._MAX_FILES_SHOWN:
+			pass # TODO: some readability here
 		for k, v in self.file_dict.items():
 			self.report += f"f: {k.full_path}: copies {len(v)}: {[f.full_path for f in v]}" + "\n"
 		self.report += "\n\n" + f"Task took: {self.duration}s"
@@ -627,6 +659,11 @@ class CheckDirTask(BaseTask):
 		self.subtask_add = None
 		self.subtask_compare = None
 		self.checksum_algorithm = checksum_algorithm
+	
+	
+	def reinit(self):
+		
+		pass
 	
 	
 	def mark_task_start(self):
