@@ -46,6 +46,7 @@ class BaseTask(TaskRecord):
 		self.save_results = True
 		self.__result_html_complete = False
 		self._MAX_FILES_SHOWN = 100 # will not show files if there are more than that files in dir
+		self.descr = "BaseTask has no description"
 	
 	
 	def reinit(self):
@@ -173,6 +174,7 @@ class AddDirTask(BaseTask):
 		self.checksum_algorithm = checksum_algorithm # default is md5, but sha512 also is supported
 		self.__thread = None
 		self.__pool = None
+		self.descr = f"{self._type} for ../{os.path.split(self.target_dir_full_path)[-1]}"
 		
 		if self._logger is not None:
 			self._logger.debug(f"__init__: init complete with target_dir_full_path {self.target_dir_full_path}")
@@ -182,9 +184,9 @@ class AddDirTask(BaseTask):
 		pass
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for {self.target_dir_full_path}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for {self.target_dir_full_path}"
 	
 	
 	def get_dir_listing(self, path_to_dir):
@@ -328,6 +330,7 @@ class CompareDirsTask(BaseTask):
 		self.files_only_on_b = []
 		self.equal_names_diff_checsums = []
 		self.dirs_are_equal = None
+		self.descr = f"{self._type} for dir A {self.dir_a} and dir B {self.dir_b}"
 	
 	
 	def reinit(self):
@@ -336,9 +339,9 @@ class CompareDirsTask(BaseTask):
 		pass
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for dir A {self.dir_a} and dir B {self.dir_b}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for dir A {self.dir_a} and dir B {self.dir_b}"
 	
 	
 	@property
@@ -516,15 +519,16 @@ class FindCopiesTask(BaseTask):
 		self.full_copies_list = [] # copy contains all files of orig
 		self.perfect_copies_list = [] # copy is full_copy and has different path not as original
 		self.ignore_same_fullpath = True # do not count files with the same path as copies
+		self.descr = f"Task {self._type} for dir {self.dir.id} - ../{os.path.split(self.dir.full_path)[-1]}"
 		
 	
 	def reinit(self):
 		self.target_dir = self.dir_manager.get_by_id(int(self.target_dir_id))
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for dir {self.dir}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def run(self):
@@ -659,7 +663,8 @@ class CheckDirTask(BaseTask):
 		self.subtask_add = None
 		self.subtask_compare = None
 		self.checksum_algorithm = checksum_algorithm
-	
+		self.descr = f"{self._type} for dir {self.dir.id} - ../{os.path.split(self.dir.full_path)[-1]}"
+		
 	
 	def reinit(self):
 		
@@ -755,9 +760,9 @@ class CheckDirTask(BaseTask):
 		self.save_task()
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for dir {self.dir}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def generate_report(self):
@@ -803,11 +808,12 @@ class SplitDirTask(BaseTask):
 		self.target_dir_id = target_dir.id
 		self.subdirs = []
 		self.subdir_path_dict = dict()
+		self.descr = f"{self._type} for dir {self.dir_obj.id} - ../{os.path.split(self.dir_obj)[-1]}"
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for dir {self.dir_obj}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for dir {self.dir_obj}"
 	
 	
 	def get_dict_of_subdirs(self):
@@ -910,11 +916,12 @@ class CompileDirTask(BaseTask):
 		self.dry_run = False
 		self.CP_COMMAND = "/usr/bin/cp -p" if os.path.isfile("/usr/bin/cp") else "/bin/cp -p"
 		self.MKDIR_COMMAND = "/usr/bin/mkdir -p" if os.path.isfile("/usr/bin/mkdir") else "/bin/mkdir -p"
+		self.descr = f"{self._type} for new dir {self.path_to_new_dir}"
+		
 	
-	
-	@property
-	def descr(self):
-		return f"Task {self._type} for new dir {self.path_to_new_dir}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for new dir {self.path_to_new_dir}"
 	
 	
 	def get_unique_file_list(self, session = None):
@@ -1045,11 +1052,12 @@ class DeleteDirTask(BaseTask):
 		self.target_dir_full_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
 		self.deleted_files = []
+		self.descr = f"{self._type} for dir id: {self.target_dir_id} - {os.path.split(self.target_dir_full_path)[-1]}"
 	
 	
-	@property
-	def descr(self):
-		return f"Task {self._type} for dir id: {self.target_dir_id} - {self.target_dir_full_path}"
+	# @property
+	# def descr(self):
+	# 	return f"Task {self._type} for dir id: {self.target_dir_id} - {self.target_dir_full_path}"
 	
 	
 	def generate_report(self):
@@ -1092,10 +1100,11 @@ class DeleteFilesTask(BaseTask):
 		super(DeleteFilesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
 		self.files_to_delete = file_list
 		self.target_file_list = ",".join([f.full_path for f in file_list])
+		self.descr = f"{self._type} for {len(self.files_to_delete)} files"
 	
 	
-	def descr(self):
-		return f"Task {self._type} for {len(self.files_to_delete)} files"
+	# def descr(self):
+	# 	return f"Task {self._type} for {len(self.files_to_delete)} files"
 	
 	
 	def run(self):
