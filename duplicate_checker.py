@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-03-09
+# 2023-03-15
 
 
-__version__ = "0.9.10"
+__version__ = "0.9.11"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -46,17 +46,17 @@ import urllib.parse
 
 
 
-"""DuplicateChecker
+"""DuplicateChecker app
 """
 
 	
 class DuplicateChecker(object):
-	"""DuplicateChecker app"""
+	"""DuplicateChecker app class, provides base functionality"""
 	
 	def __init__(self, db_file = None, config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "duplicate_checker.conf")):
 		super(DuplicateChecker, self).__init__()
 		
-		# config
+		# config handling
 		self.CONFIG_FILE = config_file
 		self._config = configparser.ConfigParser()
 		self._config.read(self.CONFIG_FILE)
@@ -77,16 +77,14 @@ class DuplicateChecker(object):
 		self.checksum_algorithm = self._config.get("main", "checksum_algorithm")
 		self.ignore_duplicates = False
 		self.task_autostart = True if self._config.get("main", "task_autostart") == "yes" else False
-		# set DB file as either local or absolute
+		# set DB file as either relative or absolute
 		if db_file is not None:
 			self.DB_FILE = db_file
 		else:
 			if os.sep not in self._config.get("main", "db_file"):
 				self.DB_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "db_file"))
-				print(f"Using relative path to DB file: {self.DB_FILE}")
 			else:
 				self.DB_FILE = self._config.get("main", "db_file")
-				print(f"Using absolute path to DB file: {self.DB_FILE}")
 		# managers
 		self.db_manager = DBManager(db_file = self.DB_FILE, logger = self._logger.getChild("DBManager"))
 		self.file_manager = FileManager(logger = self._logger.getChild("FileManager"))
@@ -119,12 +117,12 @@ class DuplicateChecker(object):
 	
 
 class DuplicateCheckerFlask(DuplicateChecker):
-	"""DuplicateChecker web app with Flask"""
+	"""DuplicateChecker web app with Flask web interface"""
 	
 	def __init__(self, db_file = "", config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "duplicate_checker.conf")):
 		super(DuplicateCheckerFlask, self).__init__(db_file = db_file, config_file = config_file)
 		
-		# web interface
+		# web interface properties
 		self.port = int(self._config.get("web", "port"))
 		self.addr = self._config.get("web", "host")
 	
@@ -137,7 +135,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		@web_app.route("/ui/", methods = ["GET"])
 		def show_main():
 			if request.method == "GET":
-				return render_template("main_page.html", dirs = [], version = __version__, tasks = [], db_file = self.DB_FILE)
+				return render_template("main_page.html", dirs = [], version = __version__, db_file = self.DB_FILE)
 		
 		
 		@web_app.route("/ui/show-all-dirs", methods = ["GET"])
@@ -540,6 +538,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 
 	
 if __name__ == "__main__":
+	print(f"DuplicateChecker version {__version__}")
 	
 	if "--help" in sys.argv[1:]:
 		print("DuplicateChecker web app")

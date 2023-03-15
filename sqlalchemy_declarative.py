@@ -7,10 +7,6 @@ import traceback
 import datetime
 import time
 
-# logging
-import logging
-import logging.handlers
-
 # SQL Alchemy
 from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
@@ -18,6 +14,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
 
 from base import secs_to_hrf, datetime_to_str
+
 
 
 DeclarativeBase = declarative_base()
@@ -61,8 +58,8 @@ class Directory(DeclarativeBase):
 	def dict_for_json(self):
 		return {"id": self.id,
 		"is_etalon": self.is_etalon,
-		"date_added": self.date_added,
-		"date_checked": self.date_checked,
+		"date_added": str(self.date_added),
+		"date_checked": str(self.date_checked),
 		"name": self.name,
 		"full_path": self.full_path,
 		"comment": self.comment,
@@ -115,8 +112,8 @@ class File(DeclarativeBase):
 	def dict_for_json(self):
 		return {"id": self.id,
 		"is_etalon": self.is_etalon,
-		"date_added": self.date_added,
-		"date_checked": self.date_checked,
+		"date_added": str(self.date_added),
+		"date_checked": str(self.date_checked),
 		"full_path": self.full_path,
 		"checksum": self.checksum,
 		"comment": self.comment,
@@ -146,6 +143,7 @@ class TaskRecord(DeclarativeBase):
 	result_OK = Column(Boolean, nullable = True, default = None) # True == result OK (as expexted), False == result unexpected
 	report = Column(String, nullable = True, default = "")
 	progress = Column(Float, nullable = True, default = 0.0)
+	descr = Column(String, nullable = True, default = "")
 	_prev_progress = None
 	_prev_datetime = None
 	_prev_ETA_S = 0
@@ -164,8 +162,8 @@ class TaskRecord(DeclarativeBase):
 	def dict_for_json(self):
 		return {"id": self.id,
 		"_type": self._type,
-		"date_start": self.date_start,
-		"date_end": self.date_end,
+		"date_start": str(self.date_start),
+		"date_end": str(self.date_end),
 		"target_dir_id": self.target_dir_id,
 		"target_dir_full_path": self.target_dir_full_path,
 		"target_file_list": self.target_file_list,
@@ -206,12 +204,6 @@ class TaskRecord(DeclarativeBase):
 			# self._logger.debug("result_html: returning pre-generated report")
 			return self.report.replace("\n", "<br>\n")
 		return self.generate_report().replace("\n", "<br>\n")	
-	
-	
-	@property
-	def descr(self):
-		# return f"Task {self._type}"
-		return f"Task {self.__class__.__name__}"
 
 		
 	@property

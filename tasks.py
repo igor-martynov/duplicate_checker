@@ -69,7 +69,6 @@ class BaseTask(TaskRecord):
 		self.mark_task_end()
 		self.generate_report()
 		
-		
 		"""
 		raise NotImplemented
 	
@@ -184,11 +183,6 @@ class AddDirTask(BaseTask):
 		pass
 	
 	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for {self.target_dir_full_path}"
-	
-	
 	def get_dir_listing(self, path_to_dir):
 		glob_str = os.path.join(path_to_dir, "**")
 		file_list = glob.glob(glob_str, recursive = True)
@@ -266,11 +260,8 @@ class AddDirTask(BaseTask):
 			self.file_list = self.get_dir_listing(self.target_dir_full_path)
 			self._logger.debug(f"run: got file list: {self.file_list}")
 			dict_list = self._create_input_list()
-			# dict_length = len(dict_list)
 			result = self._create_multiprocessing_pool(dict_list)
 			self._wait_till_complete(result, dict_list)
-			# _session = self.get_session()
-			# new_dir = self._create_directory_and_files(result, session = _session)
 			
 			# now all slow processes are complete
 			self._logger.debug("run: will create new files and dir")
@@ -337,11 +328,6 @@ class CompareDirsTask(BaseTask):
 		self.dir_a = self.dir_manager.get_by_id(int(self.target_freeform.split(";")[0]))
 		self.dir_b = self.dir_manager.get_by_id(int(self.target_freeform.split(";")[1]))
 		pass
-	
-	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir A {self.dir_a} and dir B {self.dir_b}"
 	
 	
 	@property
@@ -460,15 +446,15 @@ class CompareDirsTask(BaseTask):
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
-		self.report = f"{self.descr}" + "\n"
+		# self.report = f"{self.descr}" + "\n"
 		self.report += f"Directory comparation status: {self.state}" + ".\n"
 		self.report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
 		self.report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
 		self.report += "\n\n"
 		if self.dirs_are_equal:
-			self.report += "DIRS ARE EQUAL.\n\n"
+			self.report += "<span style=\"color: green;\">DIRS ARE EQUAL.</span>\n\n"
 		else:
-			self.report += "Dirs are not equal.\n\n"
+			self.report += "<span style=\"color: red;\">Dirs are not equal.</span>\n\n"
 			if self.a_is_subset_of_b:
 				self.report += "A is subset of B.\n\n"
 			if self.b_is_subset_of_a:
@@ -519,7 +505,7 @@ class FindCopiesTask(BaseTask):
 		self.full_copies_list = [] # copy contains all files of orig
 		self.perfect_copies_list = [] # copy is full_copy and has different path not as original
 		self.ignore_same_fullpath = True # do not count files with the same path as copies
-		self.descr = f"Task {self._type} for dir {self.dir.id} - ../{os.path.split(self.dir.full_path)[-1]}"
+		self.descr = f"{self._type} for dir {self.dir.id} - ../{os.path.split(self.dir.full_path)[-1]}"
 		
 	
 	def reinit(self):
@@ -627,17 +613,18 @@ class FindCopiesTask(BaseTask):
 				self.full_copies_list.append(d)
 				if d.full_path != self.dir.full_path:
 					self.perfect_copies_list.append(d)
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- IS EXACT FULL COPY -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">IS EXACT FULL COPY</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
 				self.dir_has_full_copy = True
 				self.full_copies_list.append(d)
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- COPY CONTAINS FULL ORIGINAL -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">COPY CONTAINS FULL ORIGINAL</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			elif len(set_checksum_origin.intersection(set_checksum_copy_dir)) != 0 and len(d.files) != len(self.dir.files):
 				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 			else:
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- ERROR! -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self._logger.error(f"generate_report: got unexpected branch for d {d}!")
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: red;\">ERROR!</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
 		
 		self.report += "\n\n"
 		self._logger.debug("generate_report: stage 3 complete")
@@ -760,11 +747,6 @@ class CheckDirTask(BaseTask):
 		self.save_task()
 	
 	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir {self.dir}"
-	
-	
 	def generate_report(self):
 		_session = self.get_session()
 		_session.add(self.dir)
@@ -776,9 +758,9 @@ class CheckDirTask(BaseTask):
 		self.report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
 		# self.report += f"Actual dir: {len(self.subtask_add.dir.files)} files" + "\n"
 		if self.subtask_compare.dirs_are_equal:
-			self.report += "Dir is OK, all checksums are actual\n"
+			self.report += "<span style=\"color: green;\">Dir is OK, all checksums are actual\n</span>"
 		else:
-			self.report += "DIR HAS CHANGED! Please check result of subtask CompareDirsTask.\n"
+			self.report += "<span style=\"color: red;\">DIR HAS CHANGED! </span> Please check result of subtask CompareDirsTask.\n"
 		self.report += "\n"
 		self.report += "\n\n" + f"result of subtask CompareDirsTask: {self.subtask_compare.result_html}" + "\n"
 		self.report += "\n\n" + f"result of subtask AddDirTask: {self.subtask_add.result_html}" + "\n"
