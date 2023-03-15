@@ -13,7 +13,9 @@
 			{% include 'header.jinja2.html' %}
 			<br>
 			<br>
-			Task result: <br>
+			Task id: {{ task.id }}<br>
+			Task descr: {{ task.descr }}<br><br>
+			Result:<br>
 			{{ task.result_html | safe }}<br>
 			<br>
 			<br>
