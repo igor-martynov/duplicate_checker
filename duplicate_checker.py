@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-03-15
+# 2023-05-09
 
 
 __version__ = "0.9.11"
@@ -130,6 +130,12 @@ class DuplicateCheckerFlask(DuplicateChecker):
 	def run_web_app(self):
 		web_app = Flask(__name__)
 		web_app.secret_key = self._config.get("web", "secret")		
+		
+		
+		
+		@web_app.route("/", methods = ["GET"])
+		def redirect_main():
+			return redirect("/ui")
 		
 		
 		@web_app.route("/ui/", methods = ["GET"])

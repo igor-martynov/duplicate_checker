@@ -239,7 +239,8 @@ class AddDirTask(BaseTask):
 		for r in result:
 			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], _dir = new_dir, date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save, session = _session))
 		self._logger.debug(f"_create_directory_and_files: created files in already created dir")
-		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {[f.full_path for f in new_dir.files]}")
+		files_appended_tmp = [f.full_path for f in new_dir.files] if len(new_dir.files) <= self._MAX_FILES_SHOWN else f"{new_dir.files[0].full_path} and more"
+		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {files_appended_tmp}")
 		self.dir = new_dir
 		self.target_dir_id = self.dir.id
 		if session is None:
@@ -443,11 +444,12 @@ class CompareDirsTask(BaseTask):
 	
 	
 	def generate_report(self):
+		
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
 		# self.report = f"{self.descr}" + "\n"
-		self.report += f"Directory comparation status: {self.state}" + ".\n"
+		self.report = f"Directory comparation status: {str(self.state)}" + ".\n"
 		self.report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
 		self.report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
 		self.report += "\n\n"
@@ -537,7 +539,7 @@ class FindCopiesTask(BaseTask):
 		try:
 			progress_increment = (1 / total_files) if total_files != 0 else 1.0
 			for f in self.dir.files:
-				self._logger.debug(f"run: checking file {f.full_path}... progress: {self.progress}")
+				self._logger.debug(f"run: checking copies of file {f.full_path}... progress: {self.progress}")
 				candidates = self._file_manager.find_copies(f, session = _session, ignore_same_fullpath = self.ignore_same_fullpath)
 				if len(candidates) == 0:
 					self._logger.debug(f"run: got no candidates for file {f}")
@@ -640,7 +642,7 @@ class FindCopiesTask(BaseTask):
 
 
 class CheckDirTask(BaseTask):
-	"""CheckDirTask - task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
+	"""Task to check if dir in DB is actual (each file has really the same checksum as stated in DB)"""
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
 		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -901,10 +903,6 @@ class CompileDirTask(BaseTask):
 		self.descr = f"{self._type} for new dir {self.path_to_new_dir}"
 		
 	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for new dir {self.path_to_new_dir}"
-	
 	
 	def get_unique_file_list(self, session = None):
 		unique_checksums = set([f.checksum for f in self.all_files_list])
@@ -924,6 +922,7 @@ class CompileDirTask(BaseTask):
 	def check_all_files_exist(self):
 		if len(self.unique_files) == 0:
 			self._logger.error("check_all_files_exist: unique_files list is empty!")
+			return False
 		for f in self.unique_files:
 			if not self.dry_run and not os.path.isfile(f.full_path):
 				self._logger.error(f"check_all_files_exist: file {f.full_path} is unavailable now, aborting")
@@ -946,7 +945,10 @@ class CompileDirTask(BaseTask):
 		for f in self.unique_files:
 			if f.name in resulting_names:
 				# will try and ganerate new name
-				new_name = f.name + "_" + f.checksum[-6:]
+				orig_name = f.name.split(".")[0]
+				orig_extension = f.name.replace(orig_name, "")
+				# new_name = f.name + "_" + f.checksum[-6:]
+				new_name = orig_name + "_dup_" + f.checksum[-6:] + orig_extension
 				self._logger.info(f"create_copy_commands: will use new name {new_name} for file {f.full_path}")
 				cmd_args_dict[new_name] = f
 				self.renamed_files.append((f, new_name))
