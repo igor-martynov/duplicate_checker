@@ -43,7 +43,7 @@ class BaseTask(TaskRecord):
 		self.get_session = db_manager.get_session
 		self.close_session = db_manager.close_session
 		self._type = self.__class__.__name__
-		self.save_results = True
+		self.save_disabled = False
 		self.__result_html_complete = False
 		self._MAX_FILES_SHOWN = 100 # will not show files if there are more than that files in dir
 		self.descr = "BaseTask has no description"
@@ -227,17 +227,30 @@ class AddDirTask(BaseTask):
 		return
 	
 	
-	def _create_directory_and_files(self, result, save = True, session = None):
+	def _create_directory_and_files(self, result, save_disabled = False, session = None):
 		now = datetime.datetime.now()
 		if session is None:
 			_session = self.get_session()
 		else:
 			_session = session
-		new_dir = self._dir_manager.create(self.target_dir_full_path, is_etalon = self.is_etalon, date_added = now, date_checked = now, save = save, name = os.path.basename(self.target_dir_full_path), session = _session)
+		new_dir = self._dir_manager.create(self.target_dir_full_path,
+			is_etalon = self.is_etalon,
+			date_added = now,
+			date_checked = now,
+			save_disabled = save_disabled,
+			name = os.path.basename(self.target_dir_full_path),
+			session = _session)
 		self._logger.debug(f"_create_directory_and_files: new empty dir created: {new_dir}")
 		files = []
 		for r in result:
-			files.append(self._file_manager.create(r['full_path'], checksum = r['checksum'], _dir = new_dir, date_added = r["date_end"], date_checked = r["date_end"], is_etalon = self.is_etalon, save = save, session = _session))
+			files.append(self._file_manager.create(r['full_path'],
+				checksum = r['checksum'],
+				_dir = new_dir,
+				date_added = r["date_end"],
+				date_checked = r["date_end"],
+				is_etalon = self.is_etalon,
+				save_disabled = save_disabled,
+				session = _session))
 		self._logger.debug(f"_create_directory_and_files: created files in already created dir")
 		files_appended_tmp = [f.full_path for f in new_dir.files] if len(new_dir.files) <= self._MAX_FILES_SHOWN else f"{new_dir.files[0].full_path} and more"
 		self._logger.info(f"_create_directory_and_files: created dir {new_dir.full_path} with {len(new_dir.files)} files appended: {files_appended_tmp}")
@@ -267,11 +280,10 @@ class AddDirTask(BaseTask):
 			# now all slow processes are complete
 			self._logger.debug("run: will create new files and dir")
 			new_dir = self._create_directory_and_files(result)
-			# _session = self.get_session()
-			if self.save_results:
+			if not self.save_disabled:
 				self.save_result()	
 			else:
-				self._logger.info("run: not saving results because save set to False")	
+				self._logger.info("run: not saving results because save disabled")	
 			self.mark_task_OK()
 			self.mark_result_OK()
 			self._logger.debug("run: complete")
@@ -342,7 +354,6 @@ class CompareDirsTask(BaseTask):
 		
 	
 	def run(self):
-		# self._logger.info(f"run: starting comparing dir_a {self.dir_a.full_path} and dir_b {self.dir_b.full_path}")
 		self.mark_task_start()
 		self._logger.debug("run: checking files on both A and B")
 		try:
@@ -444,12 +455,11 @@ class CompareDirsTask(BaseTask):
 	
 	
 	def generate_report(self):
-		
 		if len(self.files_on_both) == 0 and len(self.files_a_on_b) == 0 and len(self.files_b_on_a) == 0:
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
 		# self.report = f"{self.descr}" + "\n"
-		self.report = f"Directory comparation status: {str(self.state)}" + ".\n"
+		self.report += f"Directory comparation status: {self.state}" + ".\n"
 		self.report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
 		self.report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
 		self.report += "\n\n"
@@ -642,7 +652,7 @@ class FindCopiesTask(BaseTask):
 
 
 class CheckDirTask(BaseTask):
-	"""Task to check if dir in DB is actual (each file has really the same checksum as stated in DB)"""
+	"""CheckDirTask - task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
 	
 	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
 		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
@@ -682,7 +692,7 @@ class CheckDirTask(BaseTask):
 			task_manager = self._task_manager,
 			is_etalon = self.dir.is_etalon,
 			checksum_algorithm = self.checksum_algorithm)
-		self.subtask_add.save_results = False
+		self.subtask_add.save_disabled = True
 		self._logger.debug(f"init_subtask_add: adding subtask AddDirTask, target_dir_full_path is: {self.dir.full_path}")
 	
 	
@@ -793,11 +803,6 @@ class SplitDirTask(BaseTask):
 		self.subdirs = []
 		self.subdir_path_dict = dict()
 		self.descr = f"{self._type} for dir {self.dir_obj.id} - ../{os.path.split(self.dir_obj)[-1]}"
-	
-	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir {self.dir_obj}"
 	
 	
 	def get_dict_of_subdirs(self):
@@ -1039,11 +1044,6 @@ class DeleteDirTask(BaseTask):
 		self.descr = f"{self._type} for dir id: {self.target_dir_id} - {os.path.split(self.target_dir_full_path)[-1]}"
 	
 	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir id: {self.target_dir_id} - {self.target_dir_full_path}"
-	
-	
 	def generate_report(self):
 		self.report = f"{self.descr}" + "\n"
 		self.report += f"Dir: id {self.target_dir_id}, {self.target_dir_full_path}"
@@ -1052,7 +1052,6 @@ class DeleteDirTask(BaseTask):
 			self.report += df + "\n"
 	
 	
-	# @cProfile_wrapper
 	def run(self):
 		self.mark_task_start()
 		self._logger.debug(f"run: starting deletion of dir {self.target_dir_id} - {self.target_dir_full_path}")
@@ -1079,17 +1078,22 @@ class DeleteDirTask(BaseTask):
 
 # TODO: this should be extended
 class DeleteFilesTask(BaseTask):
-	"""docstring for DeleteFilesTask"""
-	def __init__(self, file_list, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(DeleteFilesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	"""Delete selected files"""
+	def __init__(self, file_list,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(DeleteFilesTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.files_to_delete = file_list
 		self.target_file_list = ",".join([f.full_path for f in file_list])
 		self.descr = f"{self._type} for {len(self.files_to_delete)} files"
-	
-	
-	# def descr(self):
-	# 	return f"Task {self._type} for {len(self.files_to_delete)} files"
-	
+		
 	
 	def run(self):
 		self.mark_task_start()

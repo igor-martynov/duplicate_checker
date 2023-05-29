@@ -18,8 +18,8 @@ import logging.handlers
 
 import traceback
 
-from sqlalchemy_declarative import DeclarativeBase, File, Directory
-from sqlalchemy import create_engine, select
+# from sqlalchemy_declarative import DeclarativeBase, File, Directory
+# from sqlalchemy import create_engine, select
 
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
 from sqlalchemy import create_engine, select, Index, inspect
@@ -172,7 +172,7 @@ class FileManager(BaseManager):
 		is_etalon = False,
 		comment = "",
 		_dir = None,
-		save = True,
+		save_disabled = False,
 		session = None):
 		new_file = File(full_path = path_to_file,
 			checksum = checksum,
@@ -181,7 +181,7 @@ class FileManager(BaseManager):
 			date_checked = date_checked,
 			is_etalon = is_etalon,
 			comment = comment)
-		if not save:
+		if save_disabled:
 			return new_file
 		if session is None:
 			_session = self.get_session()
@@ -255,7 +255,15 @@ class DirManager(BaseManager):
 		return res
 	
 	
-	def create(self, path_to_dir, is_etalon = False, date_added = None, date_checked = None, comment = "", save = True, name = "", files = [], session = None):
+	def create(self, path_to_dir,
+		is_etalon = False,
+		date_added = None,
+		date_checked = None,
+		comment = "",
+		save_disabled = False,
+		name = "",
+		files = [],
+		session = None):
 		new_dir = Directory(full_path = path_to_dir,
 			date_added = date_added,
 			date_checked = date_checked,
@@ -263,7 +271,7 @@ class DirManager(BaseManager):
 			comment = comment,
 			name = name,
 			files = files)
-		if not save:
+		if save_disabled:
 			return new_dir
 		if session is None:
 			_session = self.get_session(expire_on_commit = False)
@@ -374,9 +382,8 @@ class TaskManager(BaseManager):
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
 			# re-run task here
-			self._logger.info(f"start_task: re-starting task {task}")
-			self.re_run_task(task)
-			self._logger.error(f"start_task: could not find task {task} in current task list, ignoring")
+			self._logger.info(f"start_task: re-running task {task}")
+			# self.re_run_task(task)
 	
 	
 	# TODO: under construction
@@ -659,4 +666,35 @@ class DBManager(object, metaclass = MetaSingleton):
 		except Exception as e:
 			self._logger.error(f"run_vacuum: got error {e}, traceback: {traceback.format_exc()}")
 	
+
+
+# TODO: under construction
+class MessageManager(object, metaclass = MetaSingleton):
+	"""MessageManager - manage all web messages"""
+	def __init__(self, logger = None):
+		super(MessageManager, self).__init__()
+		
+		self.messages = []
+		self.MAX_MESSAGES = 4
+		self._logger = logger
+		pass
+	
+	
+	def add_message(self, msg_text):
+		if len(self.messages) >= 4:
+			self.messages = self.messages[:self.MAX_MESSAGES - 1]
+		self.messages.append(msg_text)
+		self._logger.debug(f"add_message: current messages: {self.messages}")
+		pass
+
+
+	def add_error(self, msg_text):
+		self.add_message(f"ERROR: {msg_text}")
+		pass
+
+	
+	def add_OK(self, msg_text):
+		self.add_message(f"OK: {msg_text}")
+		pass
+
 

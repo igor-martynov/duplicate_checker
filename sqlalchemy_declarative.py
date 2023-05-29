@@ -7,7 +7,7 @@ import traceback
 import datetime
 import time
 
-# SQL Alchemy
+# SQLAlchemy
 from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -37,7 +37,7 @@ class Directory(DeclarativeBase):
 	drive = Column(String, nullable = True)
 	host = Column(String, nullable = True)
 	files = relationship("File", back_populates = "dir")
-	_str = f"id: {id}, {full_path}"
+	_str = f"id: {id} - {full_path}"
 	
 	
 	@property
@@ -86,7 +86,7 @@ class File(DeclarativeBase):
 	enabled = Column(Boolean, nullable = False, default = True)
 	dir_id = Column(Integer, ForeignKey("dirs.id"))
 	dir = relationship("Directory", back_populates = "files")
-	_str = f"id: {id}, {full_path}, checksum: {checksum}"
+	_str = f"id: {id} - {full_path} - checksum: {checksum}"
 	
 	
 	@property
@@ -144,6 +144,7 @@ class TaskRecord(DeclarativeBase):
 	report = Column(String, nullable = True, default = "")
 	progress = Column(Float, nullable = True, default = 0.0)
 	descr = Column(String, nullable = True, default = "")
+	# parent_task_id = Column(Integer, ForeignKey("tasks.id"), nullable = True, default = None) # is not None for subtasks
 	_prev_progress = None
 	_prev_datetime = None
 	_prev_ETA_S = 0

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-05-09
+# 2023-05-28
 
 
 __version__ = "0.9.11"
@@ -37,9 +37,6 @@ from flask import Flask, request, Response, render_template, redirect, url_for, 
 from base import *
 from managers import *
 from flask_functions import *
-
-# from sqlalchemy_declarative import DeclarativeBase, File, Directory
-# from sqlalchemy import create_engine, select, Index, inspect
 
 import json
 import urllib.parse
@@ -548,7 +545,7 @@ if __name__ == "__main__":
 	
 	if "--help" in sys.argv[1:]:
 		print("DuplicateChecker web app")
-		print("	--db-file /path/to/db")
+		print("		--db-file /path/to/db - override path to database file")
 		print("")
 		exit(0)
 	

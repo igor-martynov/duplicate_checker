@@ -76,4 +76,13 @@ Typical workflows are:
 	- "enable" will set "enabled" flag on dir. Enabled dir will participate in all operations. All dirs are enabled on creation
 	- "disable" will unset "enabled" flag on dir. Disabled dir will ne ignored in all operations. This is useful when you want to ignore dir, but don't want to delete it
 	
-	
+
+
+Roadmap.
+	- fix issue with subtasks that are added as tasks
+	- fix issue with new dir added when CheckDirTask is used
+	- release of stable version 1.0
+	- add functionality "copy all files without_copies to new dir"
+	- add functionaluty "copy pathes to all files without_copies to clipboard"
+
+
