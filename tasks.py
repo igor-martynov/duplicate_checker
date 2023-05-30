@@ -163,8 +163,19 @@ class BaseTask(TaskRecord):
 class AddDirTask(BaseTask):
 	"""Task to add new dir. Dir existance will be checked"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, is_etalon = True, checksum_algorithm = "md5"):
-		super(AddDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None,
+		is_etalon = True,
+		checksum_algorithm = "md5"):
+		super(AddDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.target_dir_full_path = target_dir
 		self.file_list = []
 		self.is_etalon = is_etalon
@@ -297,7 +308,7 @@ class AddDirTask(BaseTask):
 			self.mark_result_failure()
 			self.mark_task_end()
 			self.save_task()
-		# TODO: should call genetatereport here
+		# TODO: should call generate_report here
 	
 	
 	def generate_report(self):
@@ -322,8 +333,19 @@ class AddDirTask(BaseTask):
 class CompareDirsTask(BaseTask):
 	"""Task to compare two dirs"""
 	
-	def __init__(self, dir_a, dir_b, target_freeform = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(CompareDirsTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, dir_a,
+		dir_b,
+		target_freeform = None,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(CompareDirsTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.target_freeform = target_freeform
 		self.dir_a = dir_a
 		self.dir_b = dir_b
@@ -358,8 +380,12 @@ class CompareDirsTask(BaseTask):
 		self._logger.debug("run: checking files on both A and B")
 		try:
 			_session = self.get_session()
-			_session.add(self.dir_a)
-			_session.add(self.dir_b)
+			if not self.save_disabled:
+				_session.add(self.dir_a)
+				_session.add(self.dir_b)
+			else:
+				self._logger.debug("run: save_disabled set to True so not adding dirs to session")
+				pass
 			
 			len_dir_a_files = len(self.dir_a.files)
 			len_dir_b_files = len(self.dir_b.files)
@@ -459,7 +485,7 @@ class CompareDirsTask(BaseTask):
 			self._logger.debug("result_html: result requested but seems to be empty. returning status from parent class")
 			# return f"Task result is not ready. Current task status: {self.state}"
 		# self.report = f"{self.descr}" + "\n"
-		self.report += f"Directory comparation status: {self.state}" + ".\n"
+		self.report = f"Directory comparation status: {str(self.state)}" + ".\n"
 		self.report += f"Directory A: {self.dir_a.full_path}, {len(self.dir_a.files)} files." + "\n"
 		self.report += f"Directory B: {self.dir_b.full_path}, {len(self.dir_b.files)} files." + "\n"
 		self.report += "\n\n"
@@ -506,8 +532,19 @@ class CompareDirsTask(BaseTask):
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of all files of one dir. All other dirs will be searched for copies."""
 	
-	def __init__(self, target_dir, target_freeform = None, target_dir_id = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(FindCopiesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		target_freeform = None,
+		target_dir_id = None,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(FindCopiesTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir_id
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
@@ -522,11 +559,6 @@ class FindCopiesTask(BaseTask):
 	
 	def reinit(self):
 		self.target_dir = self.dir_manager.get_by_id(int(self.target_dir_id))
-	
-	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def run(self):
@@ -652,10 +684,20 @@ class FindCopiesTask(BaseTask):
 
 
 class CheckDirTask(BaseTask):
-	"""CheckDirTask - task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
+	"""Task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
-		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None,
+		checksum_algorithm = "md5"):
+		super(CheckDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir.id
 		self.new_dir = None
@@ -796,8 +838,17 @@ class CheckDirTask(BaseTask):
 class SplitDirTask(BaseTask):
 	"""Task to split dir into individual subdirs and add them to the DB"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(SplitDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(SplitDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.dir_obj = target_dir
 		self.target_dir_id = target_dir.id
 		self.subdirs = []
@@ -892,8 +943,18 @@ class SplitDirTask(BaseTask):
 class CompileDirTask(BaseTask):
 	"""Task to compile new dir with unique files of input dirs"""
 	
-	def __init__(self, path_to_new_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, input_dir_list = []):
-		super(CompileDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, path_to_new_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None,
+		input_dir_list = []):
+		super(CompileDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.path_to_new_dir = path_to_new_dir
 		self.new_dir = None
 		self.input_dirs = input_dir_list
@@ -1035,8 +1096,17 @@ class CompileDirTask(BaseTask):
 class DeleteDirTask(BaseTask):
 	"""This task implements dir deletion via tasks mechanism, thus improving data integrity and reducing risks of race conditions"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(DeleteDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(DeleteDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.target_dir = target_dir
 		self.target_dir_full_path = target_dir.full_path
 		self.target_dir_id = target_dir.id
@@ -1078,7 +1148,7 @@ class DeleteDirTask(BaseTask):
 
 # TODO: this should be extended
 class DeleteFilesTask(BaseTask):
-	"""Delete selected files"""
+	"""Task to delete selected files"""
 	def __init__(self, file_list,
 		logger = None,
 		db_manager = None,
