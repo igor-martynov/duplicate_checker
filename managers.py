@@ -210,7 +210,7 @@ class FileManager(BaseManager):
 	
 
 class DirManager(BaseManager):
-	"""Responsible for all directory operations (CRUD and other)"""
+	"""DirManager - responsible for all directory operations (CRUD and other)"""
 	
 	def __init__(self, logger = None):
 		super(DirManager, self).__init__(logger = logger)
@@ -293,7 +293,7 @@ class DirManager(BaseManager):
 
 
 class TaskManager(BaseManager):
-	"""Create, run and manage tasks"""
+	"""TaskManager - create, run and manage tasks"""
 	
 	def __init__(self,
 		logger = None,
@@ -346,13 +346,6 @@ class TaskManager(BaseManager):
 		return None
 	
 	
-	def task_in_current(self, task):
-		for t in self.current_tasks:
-			if t.id == task.id:
-				return True
-		return False
-	
-	
 	@property
 	def running(self):
 		return False if self.current_running_task is None else True
@@ -380,7 +373,7 @@ class TaskManager(BaseManager):
 	
 	
 	def start_task(self, task):
-		if self.task_in_current(task):
+		if task in self.current_tasks:
 			if task.running is None:
 				self._logger.info(f"start_task: starting task {task}")
 				task.start()
@@ -409,6 +402,7 @@ class TaskManager(BaseManager):
 		# start
 		
 		pass
+	
 	
 	
 	def start_autostart_thread(self):
@@ -546,7 +540,7 @@ class TaskManager(BaseManager):
 
 
 class DBManager(object, metaclass = MetaSingleton):
-	"""Manage DB sessions, DB operations, ORM and usefull utilities"""
+	"""DBManager - manage DB sessions, DB operations, ORM and usefull utilities"""
 	
 	def __init__(self,
 		db_file = None,
@@ -677,7 +671,6 @@ class DBManager(object, metaclass = MetaSingleton):
 # TODO: under construction
 class MessageManager(object, metaclass = MetaSingleton):
 	"""MessageManager - manage all web messages"""
-	
 	def __init__(self, logger = None):
 		super(MessageManager, self).__init__()
 		

@@ -154,7 +154,6 @@ class TaskRecord(DeclarativeBase):
 	def url(self):
 		return f"/ui/show-task/{self.id}"
 	
-	
 	@property
 	def url_html_code(self):
 		return f"<a href='{self.url}' title='show task'>{self.id} - {self.descr}</a>"
@@ -193,13 +192,11 @@ class TaskRecord(DeclarativeBase):
 			if not self.OK and self.running:
 				return f"IN PROGRESS, FAILURE ({(self.progress * 100):.1f}%)"
 			if (not self.OK and not self.running) or (not self.OK and not self.complete):
-				return "COMPLETE, FAILED"
-			self._logger.info("state: UNKNOWN")
-			return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
+				return "COMPLETE FAILED"
 		except Exception as e:
 			print(f"state: got error {e}, traceback: {traceback.format_exc()}")
 			self._logger.error(f"state: got error {e}, traceback: {traceback.format_exc()}")
-			return f"UNKNOWN (error) (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
+		return f"UNKNOWN (OK: {self.OK}, running: {self.running}, complete: {self.complete}, start: {datetime_to_str(self.date_start)}, end: {datetime_to_str(self.date_end)})"
 	
 	
 	@property
