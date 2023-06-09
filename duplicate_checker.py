@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-05-28
+# 2023-06-02
 
 
 __version__ = "0.9.11"
@@ -12,7 +12,7 @@ __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 """This app stores, compares and manages lists of checksums of files.
 
-Originally written to manage photo collection and store checksums of RAW files.
+Originally written to manage photo collection and check consistency of RAW files.
 """
 
 
@@ -32,14 +32,13 @@ import traceback
 
 # Flask
 from flask import Flask, request, Response, render_template, redirect, url_for, session, g
-# from werkzeug.middleware.profiler import ProfilerMiddleware
+
+import json
+import urllib.parse
 
 from base import *
 from managers import *
 from flask_functions import *
-
-import json
-import urllib.parse
 
 
 
@@ -94,6 +93,7 @@ class DuplicateChecker(object):
 	
 	
 	def init_object_managers(self):
+		"""sub-init managers"""
 		self.file_manager.set_DB_manager(self.db_manager)
 		self.dir_manager.set_DB_manager(self.db_manager)
 		self.task_manager.set_DB_manager(self.db_manager)
@@ -266,12 +266,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			for t in all_tasks:
 				if t not in self.task_manager.current_tasks:
 					self.task_manager.delete(t)
-			return render_template("show_all_tasks.html",
-				all_tasks = self.task_manager.get_full_list(),
-				current_task_list = self.task_manager.current_tasks,
-				current_task = self.task_manager.current_running_task,
-				is_running = self.task_manager.running,
-				autostart = self.task_manager.autostart_enabled)
+			return redirect("/ui/show-all-tasks")
 		
 		
 		web_app.route("/api/delete-task", methods = ["GET"])
@@ -340,9 +335,9 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = "shutted down") # this will be never returned 
 		
 		
-		# start one task
 		@web_app.route("/ui/start-task/<int:task_id>", methods = ["GET"])
 		def start_task(task_id):
+			"""start one task"""
 			if request.method == "GET":
 				try:
 					self.task_manager.start_task(self.task_manager.get_by_id(task_id))
@@ -352,7 +347,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 					return render_template("blank_page.html", page_text = f"ERROR could not start task number {task_id}, error: {e}")
 		
 		
-		# start autostart thread
 		@web_app.route("/ui/start-autostart", methods = ["GET"])
 		def start_autostart():
 			if request.method == "GET":
@@ -453,21 +447,18 @@ class DuplicateCheckerFlask(DuplicateChecker):
 		
 		
 		# API
-		# get_dir_full_path_by_id
 		@web_app.route("/api/get_dir_full_path_by_id", methods = ["GET"])
 		def get_dir_full_path_by_id_api():
 			target_dir = get_dir_objects_from_request(request)[0]
 			return target_dir.full_path
 		
 		
-		# get_file_full_path_by_id
 		@web_app.route("/api/get_file_full_path_by_id", methods = ["GET"])
 		def get_file_full_path_by_id_api():
 			target_file = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)[0]
 			return target_file.full_path
 		
 			
-		# get_running_task
 		@web_app.route("/api/get_running_task_to_js", methods = ["GET"])
 		def get_running_task_id_api():
 			target_task = self.task_manager.current_running_task
@@ -476,7 +467,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return json.dumps(target_task.dict_for_json)
 		
 		
-		# api_task_json
 		@web_app.route("/api/get_task_to_js", methods = ["GET"])
 		def get_task_js_api():
 			target_task = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)[0]
@@ -494,7 +484,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return json.dumps(target_file.dict_for_json)
 			
 		
-		# get_dir_by_id_to_js
 		@web_app.route("/api/get_dir_by_id_to_js", methods = ["GET"])
 		def get_dir_by_id_to_js():
 			target_dir = get_dir_objects_from_request(request, get_by_id = self.dir_manager.get_by_id)[0]
@@ -529,8 +518,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return redirect("/ui/actions")
 		
 		
-		
-		
+		# add Jinja2 filters here
 		web_app.jinja_env.filters["empty_on_None"] = empty_on_None
 		web_app.jinja_env.filters["newline_to_br"] = newline_to_br
 		web_app.jinja_env.filters["secs_to_hrf"] = secs_to_hrf

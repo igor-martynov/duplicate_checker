@@ -6,20 +6,14 @@ import datetime
 import time
 import math
 import glob
-
-
 import multiprocessing
 import threading
-# import sqlite3
+import traceback
 
 # logging
 import logging
 import logging.handlers
 
-import traceback
-
-# from sqlalchemy_declarative import DeclarativeBase, File, Directory
-# from sqlalchemy import create_engine, select
 
 from sqlalchemy_declarative import DeclarativeBase, File, Directory
 from sqlalchemy import create_engine, select, Index, inspect
@@ -30,17 +24,13 @@ from base import *
 from tasks import *
 		
 
-"""
-
-All managers: BaseManager, FileManager, DirManager, TaskManager, 
-    
-
+"""All managers: BaseManager, FileManager, DirManager, TaskManager, DBManager
 """
 
 
 
 class BaseManager(object, metaclass = MetaSingleton):
-	"""BaseManager - base class for all managers"""
+	"""Base class for all managers"""
 	# TODO: all class methods to abstract
 	
 	def __init__(self, logger = None):
@@ -118,7 +108,7 @@ class BaseManager(object, metaclass = MetaSingleton):
 
 
 class FileManager(BaseManager):
-	"""FileManager - responsible for all file operations (CRUD and other)"""
+	"""Responsible for all file operations (CRUD and other)"""
 	
 	def __init__(self, logger = None):
 		super(FileManager, self).__init__(logger = logger)
@@ -139,7 +129,6 @@ class FileManager(BaseManager):
 	
 	def get_by_checksum(self, checksum, idir = None, session = None):
 		if session is None:
-			# _session = self.get_session()
 			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
@@ -154,7 +143,6 @@ class FileManager(BaseManager):
 	
 	def get_by_path(self, _path, session = None):
 		if session is None:
-			# _session = self.get_session()
 			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
@@ -210,7 +198,7 @@ class FileManager(BaseManager):
 	
 
 class DirManager(BaseManager):
-	"""DirManager - responsible for all directory operations (CRUD and other)"""
+	"""Responsible for all directory operations (CRUD and other)"""
 	
 	def __init__(self, logger = None):
 		super(DirManager, self).__init__(logger = logger)
@@ -245,7 +233,6 @@ class DirManager(BaseManager):
 	
 	def get_by_path(self, _path, session = None):
 		if session is None:
-			# _session = self.get_session()
 			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
@@ -293,7 +280,7 @@ class DirManager(BaseManager):
 
 
 class TaskManager(BaseManager):
-	"""TaskManager - create, run and manage tasks"""
+	"""Create, run and manage tasks"""
 	
 	def __init__(self,
 		logger = None,
@@ -327,12 +314,17 @@ class TaskManager(BaseManager):
 	
 	
 	def get_by_id(self, _id, session = None):
+		# if self.task_is_current(_id)
 		if session is None:
 			# _session = self.get_session()
 			_session = self.get_session(nonblocking = True)
 		else:
 			_session = session
 		res = _session.query(TaskRecord).get(_id)
+		if self.task_is_current(res):
+			for t in self.current_tasks:
+				if t.id == _id:
+					res = t
 		if session is None:
 			self.close_session(_session, commit = False)
 		return res
@@ -344,6 +336,13 @@ class TaskManager(BaseManager):
 			if task.running:
 				return task
 		return None
+	
+	
+	def task_is_current(self, task):
+		for t in self.current_tasks:
+			if t.id == task.id:
+				return t
+		return False
 	
 	
 	@property
@@ -373,7 +372,7 @@ class TaskManager(BaseManager):
 	
 	
 	def start_task(self, task):
-		if task in self.current_tasks:
+		if self.task_is_current(task):
 			if task.running is None:
 				self._logger.info(f"start_task: starting task {task}")
 				task.start()
@@ -382,7 +381,7 @@ class TaskManager(BaseManager):
 				self._logger.info(f"start_task: should start task {task} but it is already running, so ignoring")
 		else:
 			# re-run task here
-			self._logger.info(f"start_task: re-running task {task}")
+			self._logger.info(f"start_task: re-running task {task} because start requested, but this task is not in current_tasks")
 			# self.re_run_task(task)
 	
 	
@@ -403,6 +402,14 @@ class TaskManager(BaseManager):
 		
 		pass
 	
+	
+	def delete(self, obj, session = None):
+		current_obj = self.task_is_current(obj)
+		if current_obj is not False:
+			self.current_tasks.remove(current_obj)
+			self._logger.debug(f"delete: removed object from current_tasks: {current_obj}")
+		BaseManager.delete(self, obj, session = session)
+		pass
 	
 	
 	def start_autostart_thread(self):
@@ -540,7 +547,7 @@ class TaskManager(BaseManager):
 
 
 class DBManager(object, metaclass = MetaSingleton):
-	"""DBManager - manage DB sessions, DB operations, ORM and usefull utilities"""
+	"""Manage DB sessions, DB operations, ORM and usefull utilities"""
 	
 	def __init__(self,
 		db_file = None,
@@ -550,7 +557,7 @@ class DBManager(object, metaclass = MetaSingleton):
 		self.DB_FILE = db_file
 		self._engine = None
 		self.session_in_use = False
-		self.WAIT_LOCK_DELAY = 0.5
+		self.WAIT_LOCK_DELAY = 2.0
 		# sub-init
 		self.init_DB_ORM()
 		self.create_DB_schema()
@@ -625,6 +632,11 @@ class DBManager(object, metaclass = MetaSingleton):
 		self._logger.debug(f"close_session: session closed: {_session}, commited, sessions: {self._sessions}")
 	
 	
+	def add_to_session(self, _session, obj):
+		_session.add(obj)
+		self._logger.debug(f"add_to_session: added to session obj {obj}")
+	
+	
 	def backup_DB(self):
 		"""will backup DB to another file - just copy it to self.DB_FILENAME with appended postfix"""
 		import shutil
@@ -670,7 +682,7 @@ class DBManager(object, metaclass = MetaSingleton):
 
 # TODO: under construction
 class MessageManager(object, metaclass = MetaSingleton):
-	"""MessageManager - manage all web messages"""
+	"""Manage all web messages"""
 	def __init__(self, logger = None):
 		super(MessageManager, self).__init__()
 		

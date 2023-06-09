@@ -116,6 +116,8 @@ def secs_to_hrf(secs):
 
 def datetime_to_str(dt):
 	"""dumb fixed conversion"""
+	if type(dt) != type(datetime.datetime.now()):
+		return ""
 	return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 	

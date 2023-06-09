@@ -322,8 +322,19 @@ class AddDirTask(BaseTask):
 class CompareDirsTask(BaseTask):
 	"""Task to compare two dirs"""
 	
-	def __init__(self, dir_a, dir_b, target_freeform = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(CompareDirsTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, dir_a,
+		dir_b,
+		target_freeform = None,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(CompareDirsTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.target_freeform = target_freeform
 		self.dir_a = dir_a
 		self.dir_b = dir_b
@@ -354,6 +365,8 @@ class CompareDirsTask(BaseTask):
 		
 	
 	def run(self):
+		def sub_compare():
+			pass
 		self.mark_task_start()
 		self._logger.debug("run: checking files on both A and B")
 		try:
@@ -431,7 +444,7 @@ class CompareDirsTask(BaseTask):
 					self._logger.debug(f"run: adding to files_only_on_b: {fb.full_path}")
 					self.files_only_on_b.append(fb)
 			self.check_dirs_equal()
-			self._logger.info(f"run: Totals: files_on_both: {len(self.files_on_both)}, files_a_on_b: {len(self.files_a_on_b)}, files_b_on_b: {len(self.files_b_on_a)}, files_only_on_a: {len(self.files_only_on_a)}, files_only_on_b: {len(self.files_only_on_b)}")
+			self._logger.info(f"run: Totals: files_on_both: {len(self.files_on_both)}, files_a_on_b: {len(self.files_a_on_b)}, files_b_on_a: {len(self.files_b_on_a)}, files_only_on_a: {len(self.files_only_on_a)}, files_only_on_b: {len(self.files_only_on_b)}")
 			self._logger.debug("run: complete")
 			self.mark_task_OK()
 		except Exception as e:
@@ -506,8 +519,19 @@ class CompareDirsTask(BaseTask):
 class FindCopiesTask(BaseTask):
 	"""Task to find copies of all files of one dir. All other dirs will be searched for copies."""
 	
-	def __init__(self, target_dir, target_freeform = None, target_dir_id = None, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None):
-		super(FindCopiesTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		target_freeform = None,
+		target_dir_id = None,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None):
+		super(FindCopiesTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir_id
 		self.file_dict = {} # key: original file object, value: list of copies (file objects)
@@ -522,11 +546,6 @@ class FindCopiesTask(BaseTask):
 	
 	def reinit(self):
 		self.target_dir = self.dir_manager.get_by_id(int(self.target_dir_id))
-	
-	
-	# @property
-	# def descr(self):
-	# 	return f"Task {self._type} for dir {self.dir}"
 	
 	
 	def run(self):
@@ -619,24 +638,26 @@ class FindCopiesTask(BaseTask):
 			set_checksum_copy = set([f.checksum for f in self.copies_dict[d]])
 			set_path_copy_dir = set([f.full_path for f in d.files])
 			set_checksum_copy_dir = set([f.checksum for f in d.files])
-			# then use these sets
+			# and use these sets
 			if set_path_copy == set_path_origin and set_checksum_copy_dir == set_checksum_origin:
+				# exact full copy
 				self.dir_has_full_copy = True
 				self.full_copies_list.append(d)
 				if d.full_path != self.dir.full_path:
 					self.perfect_copies_list.append(d)
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">IS EXACT FULL COPY</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">IS EXACT FULL COPY</span> -- copy has {len(self.copies_dict[d])} files out of original {len(self.dir.files)} files, copy dir has {len(d.files)} files total" + "\n"
 			elif set_checksum_copy_dir > set_checksum_origin:
+				# copy contains whole original
 				self.dir_has_full_copy = True
 				self.full_copies_list.append(d)
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">COPY CONTAINS FULL ORIGINAL</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: green;\">COPY CONTAINS FULL ORIGINAL</span> -- copy has {len(self.copies_dict[d])} files out of original {len(self.dir.files)} files, copy dir has {len(d.files)} files total" + "\n"
 			elif set_checksum_copy_dir < set_checksum_origin:
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- copy is partial subset -- copy has {len(self.copies_dict[d])} files out of original {len(self.dir.files)} files, copy dir has {len(d.files)} files total" + "\n"
 			elif len(set_checksum_origin.intersection(set_checksum_copy_dir)) != 0 and len(d.files) != len(self.dir.files):
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- intersection of copy and original - {len(set_checksum_origin.intersection(set_checksum_copy_dir))} files -- copy has {len(self.copies_dict[d])} files out of original {len(self.dir.files)}, copy dir has {len(d.files)} files total" + "\n"
 			else:
 				self._logger.error(f"generate_report: got unexpected branch for d {d}!")
-				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: red;\">ERROR!</span> -- (copy) {len(self.copies_dict[d])} files of (orig) {len(self.dir.files)}, copy dir has {len(d.files)} files" + "\n"
+				self.report += f"Copy: {d.full_path} - [<a href='{d.url}' title='show dir'>show dir</a>] -- <span style=\"color: red;\">ERROR!</span> -- copy has {len(self.copies_dict[d])} files out of original {len(self.dir.files)} files, copy dir has {len(d.files)} files total" + "\n"
 		
 		self.report += "\n\n"
 		self._logger.debug("generate_report: stage 3 complete")
@@ -654,8 +675,18 @@ class FindCopiesTask(BaseTask):
 class CheckDirTask(BaseTask):
 	"""CheckDirTask - task to check if dir in DB is actual (each file has really the save checksum as stated in DB)"""
 	
-	def __init__(self, target_dir, logger = None, db_manager = None, file_manager = None, dir_manager = None, task_manager = None, checksum_algorithm = "md5"):
-		super(CheckDirTask, self).__init__(logger = logger, db_manager = db_manager, file_manager = file_manager, dir_manager = dir_manager, task_manager = task_manager)
+	def __init__(self, target_dir,
+		logger = None,
+		db_manager = None,
+		file_manager = None,
+		dir_manager = None,
+		task_manager = None,
+		checksum_algorithm = "md5"):
+		super(CheckDirTask, self).__init__(logger = logger,
+			db_manager = db_manager,
+			file_manager = file_manager,
+			dir_manager = dir_manager,
+			task_manager = task_manager)
 		self.dir = target_dir
 		self.target_dir_id = target_dir.id
 		self.new_dir = None
@@ -762,12 +793,7 @@ class CheckDirTask(BaseTask):
 	def generate_report(self):
 		_session = self.get_session()
 		_session.add(self.dir)
-		_session.add(self.subtask_add)
-		_session.add(self.subtask_compare)
-		_session.add(self.subtask_compare.dir_a)
-		_session.add(self.subtask_compare.dir_b)
-		# self.report = f"{self.descr}" + "\n"
-		self.report += f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
+		self.report = f"Origin dir: {self.dir.full_path}, {len(self.dir.files)} files" + "\n"
 		# self.report += f"Actual dir: {len(self.subtask_add.dir.files)} files" + "\n"
 		if self.subtask_compare.dirs_are_equal:
 			self.report += "<span style=\"color: green;\">Dir is OK, all checksums are actual\n</span>"
@@ -846,12 +872,6 @@ class SplitDirTask(BaseTask):
 			self.progress += progress_increment
 	
 	
-	# def save_result(self):
-	# 	self._dir_manager.update(dir_obj)
-	# 	self._logger.debug(f"save_result: saved")
-	# 	self.mark_task_OK()
-	
-	
 	@property
 	def preview_html(self):
 		result = f"Will split dir {self.dir_obj.full_path} into dirs:" + "\n"
@@ -899,7 +919,6 @@ class CompileDirTask(BaseTask):
 		self.input_dirs = input_dir_list
 		self.all_files_list = [file for idir in self.input_dirs for file in idir.files].copy() # TODO: check this
 		self._logger.debug(f"__init__: got input dir list: {[idir.full_path for idir in self.input_dirs]}, path to new dir: {self.path_to_new_dir}, all_files_list: {len(self.all_files_list)} items.")
-		# self._logger.debug(f"__init__: got all_files_list: {[f.full_path for f in self.all_files_list]}")
 		self.unique_files = []
 		self.renamed_files = []
 		self.dry_run = False
@@ -907,7 +926,6 @@ class CompileDirTask(BaseTask):
 		self.MKDIR_COMMAND = "/usr/bin/mkdir -p" if os.path.isfile("/usr/bin/mkdir") else "/bin/mkdir -p"
 		self.descr = f"{self._type} for new dir {self.path_to_new_dir}"
 		
-	
 	
 	def get_unique_file_list(self, session = None):
 		unique_checksums = set([f.checksum for f in self.all_files_list])

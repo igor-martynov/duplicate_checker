@@ -16,11 +16,12 @@
 			<br>
 			Tasks:<br>
 			[<a href="/ui/start-autostart" title="start autostart">autostart on</a>] [<a href="/ui/stop-autostart" title="disable task autostart, current task will continue to run">autostart off</a>] [<a href="/ui/delete-all-tasks" title="will delete all tasks except current">delete all</a>]<br>
-			autostart: {{ autostart }}, running: {{ is_running }}, current task: {{ current_task }}<br>
+			autostart: {% if autostart == True %}<span style="color: blue;">YES</span>{% else %}<span style="color: orange;">NO</span>{% endif %}, running: {% if is_running %}<span style="color: blue;">YES</span>{% else %}<span style="color: dimgrey;">NO</span>{% endif %}, current task: {% if current_task != None %}<span style="color: blue;">{{ current_task.id }}: {{ current_task.descr }}</span>{% else %}<span style="color: dimgrey;">None</span>{% endif %}
+			 <br>
 			tasks in current session: {{ current_task_list | length }}<br>
 			<br>
 			<br>
-			{% for t in all_tasks %}task {{ t.id }}: {{ t._type }} - {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/ui/show-task/{{ t.id }}" title="show this task">show</a>] [<a href="/ui/save-task/{{ t.id }}" title="save task result">save</a>] [<a href="/api/delete-task?task_id={{ t.id }}" title="delete this task">delete</a>] [<a href="/ui/start-task/{{ t.id }}" title="start this task">start</a>]<br> {% endfor %}<br>
+			{% for t in all_tasks %}task {{ t.id }}: {{ t.descr }} - state: {{ t.state }} - result: {% if t.result_OK == True %} <span style="color: green;">OK</span> {% elif t.result_OK == None %} <span style="color: grey;">N/A</span> {% else %} <span style="color: red;">FAIL</span> {% endif %}- [<a href="/ui/show-task/{{ t.id }}" title="show this task">show</a>] [<a href="/ui/save-task/{{ t.id }}" title="save task result">save</a>] [<a href="/api/delete-task?task_id={{ t.id }}" title="delete this task">delete</a>] [<a href="/ui/start-task/{{ t.id }}" title="start this task">start</a>]<br> {% endfor %}<br>
 			<br>
 			<br>
 			<br>

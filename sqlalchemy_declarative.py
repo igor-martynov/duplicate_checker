@@ -121,7 +121,6 @@ class File(DeclarativeBase):
 	
 
 
-# TODO: under development
 class TaskRecord(DeclarativeBase):
 	"""TaskRecord"""
 	
@@ -144,7 +143,6 @@ class TaskRecord(DeclarativeBase):
 	report = Column(String, nullable = True, default = "")
 	progress = Column(Float, nullable = True, default = 0.0)
 	descr = Column(String, nullable = True, default = "")
-	# parent_task_id = Column(Integer, ForeignKey("tasks.id"), nullable = True, default = None) # is not None for subtasks
 	_prev_progress = None
 	_prev_datetime = None
 	_prev_ETA_S = 0
@@ -181,7 +179,6 @@ class TaskRecord(DeclarativeBase):
 	@property		
 	def state(self):
 		"""returns text description of current task state"""
-		# self._logger.debug("state: requested")
 		try:
 			if self.date_start is None and not self.running:
 				return "PENDING"
@@ -202,7 +199,6 @@ class TaskRecord(DeclarativeBase):
 	@property
 	def result_html(self):
 		if self.report is not None and len(self.report) != 0:
-			# self._logger.debug("result_html: returning pre-generated report")
 			return self.report.replace("\n", "<br>\n")
 		return self.generate_report().replace("\n", "<br>\n")	
 
@@ -228,18 +224,16 @@ class TaskRecord(DeclarativeBase):
 			self._prev_ETA_S = eta
 		self._prev_progress = curr_progress
 		self._prev_datetime = curr_datetime
-		# self._logger.debug(f"ETA: current eta: {eta} seconds")
 		return eta
 	
 	
 	@property
 	def ETA_datetime(self):
 		res = datetime.datetime.now() +  datetime.timedelta(seconds = self.ETA_s)
-		# self._logger.debug(f"ETA_datetime: will return {res}")
 		return res
 	
 	
 	@property
 	def dict_for_js(self):
 		return {"id": self.id, "descr": self.descr, "state": self.state}
-	
+

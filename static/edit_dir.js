@@ -1,7 +1,3 @@
-// 
-// 
-
-
 
 function edit_dir() {
 	var urlList = window.location.href.split("/")

@@ -34,13 +34,11 @@ def get_add_options_for_new_dirs_from_request(request):
 def get_dir_objects_from_request(request, get_by_id = None):
 	dirs_list = []
 	dir_ids_list = request.args.getlist("dir_id")
-	# self._logger.debug(f"get_dir_objects_from_request: will check ids: {dir_ids_list}")
 	for dir_id in dir_ids_list:
 		dir_obj = get_by_id(dir_id)
 		if dir_obj is not None:
 			dirs_list.append(dir_obj)
 		else:
-			# self._logger.error(f"get_dir_objects_from_request: dir with id {file_id} does not exist! ignoring.")
 			pass
 	return dirs_list
 
@@ -48,13 +46,11 @@ def get_dir_objects_from_request(request, get_by_id = None):
 def get_task_objects_from_request(request, get_by_id = None):
 	tasks_list = []
 	task_ids_list = request.args.getlist("task_id")
-	# self._logger.debug(f"get_task_objects_from_request: will check ids: {task_ids_list}")
 	for task_id in task_ids_list:
 		task_obj = get_by_id(task_id)
 		if task_obj is not None:
 			tasks_list.append(task_obj)
 		else:
-			# self._logger.error(f"get_task_objects_from_request: task with id {task_id} not found! ignoring")
 			pass
 	return tasks_list
 
@@ -73,7 +69,6 @@ def get_file_objects_from_request(request, get_by_id = None):
 		if file_obj is not None:
 			files_list.append(file_obj)
 		else:
-			# self._logger.error(f"get_file_objects_from_request: file with id {file_id} does not exist! ignoring.")
 			pass
 	return files_list
 
