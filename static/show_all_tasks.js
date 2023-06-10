@@ -1,7 +1,7 @@
 // 
 // 
 
-console.log("loaded JS");
+console.log("loaded JS show_all_tasks");
 
 function get_current_status() {
 	const URL = "/api/get_running_task_to_js"

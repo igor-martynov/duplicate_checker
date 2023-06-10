@@ -2,14 +2,14 @@
 # Duplicate Checker.
 
 This app was intended to save and manage file's checksums, to be sure that files are not corrupted by any cause.
-App uses WebGUI to manage file checksums and directories.
+Uses Flask for webUI and SQLAlchemy for SQLite database.
 
 
-Originally was intended to manage photo collection - directories with many RAW files, etc. 
+Originally was intended to manage photo collection - directories with many RAW files. 
 
 Use cases:
 1. Check consistency of all files that were stored for N years
-2. Check consistency of copies (or backups) of these files
+2. Check consistency of copies (or find backups) of these files
 3. Compare source dir and it's copy
 4. Find duplicates of files or whole dirs on various medias
 5. Make sure that there are copies of original files.	
@@ -84,5 +84,7 @@ Roadmap.
 	- release of stable version 1.0
 	- add functionality "copy all files without_copies to new dir"
 	- add functionaluty "copy pathes to all files without_copies to clipboard"
+	- add functionality "link to compare copy and orig on find copies result page"
+	- add feature "substatus" in tasks which show current task operation
 
 

@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 # 
 # 
-# 2023-06-02
+# 2023-06-10
 
 
-__version__ = "0.9.11"
+__version__ = "1.0.0"
 __author__ = "Igor Martynov (phx.planewalker@gmail.com)"
 
 
@@ -23,12 +23,11 @@ import datetime
 import time
 import glob
 import configparser
+import traceback
 
 # logging
 import logging
 import logging.handlers
-
-import traceback
 
 # Flask
 from flask import Flask, request, Response, render_template, redirect, url_for, session, g
@@ -42,10 +41,10 @@ from flask_functions import *
 
 
 
-"""DuplicateChecker app
-"""
+"""DuplicateChecker app store and manage checksums"""
 
 	
+
 class DuplicateChecker(object):
 	"""DuplicateChecker app class, provides base functionality"""
 	
@@ -57,7 +56,7 @@ class DuplicateChecker(object):
 		self._config = configparser.ConfigParser()
 		self._config.read(self.CONFIG_FILE)
 		# logging
-		if os.sep not in self._config.get("main", "log_file"): # autodetect absolute or relative path to file
+		if os.sep not in self._config.get("main", "log_file"): # autodetect absolute or relative path to config
 			self.LOG_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), self._config.get("main", "log_file"))
 		else:
 			self.LOG_FILE = self._config.get("main", "log_file")
@@ -114,7 +113,7 @@ class DuplicateChecker(object):
 	
 
 class DuplicateCheckerFlask(DuplicateChecker):
-	"""DuplicateChecker web app with Flask web interface"""
+	"""DuplicateChecker web app with Flask web interface. Extends DuplicateChecker"""
 	
 	def __init__(self, db_file = "", config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "duplicate_checker.conf")):
 		super(DuplicateCheckerFlask, self).__init__(db_file = db_file, config_file = config_file)
@@ -250,17 +249,7 @@ class DuplicateCheckerFlask(DuplicateChecker):
 				autostart = self.task_manager.autostart_enabled)
 		
 		
-		@web_app.route("/ui/delete-task/<int:task_id>", methods = ["GET", "POST"])
-		def delete_task(task_id):
-			target_task = self.task_manager.get_by_id(task_id)
-			if request.method == "GET":
-				return render_template("delete_task.html", task = target_task)
-			if request.method == "POST":
-				self.task_manager.delete(target_task)
-				return render_template("blank_page.html", page_text = f"task {target_task} removed")
-		
-		
-		@web_app.route("/ui/delete-all-tasks", methods = ["GET"])
+		@web_app.route("/api/delete-all-tasks", methods = ["GET"])
 		def delete_all_tasks():
 			all_tasks = self.task_manager.get_full_list()
 			for t in all_tasks:
@@ -269,12 +258,13 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return redirect("/ui/show-all-tasks")
 		
 		
-		web_app.route("/api/delete-task", methods = ["GET"])
-		def delete_task_api():
-			target_dir_list = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)
-			for task in target_dir_list:
+		@web_app.route("/api/delete-tasks", methods = ["GET"])
+		def delete_tasks_api():
+			target_tasks_list = get_task_objects_from_request(request, get_by_id = self.task_manager.get_by_id)
+			self._logger.debug(f"delete_tasks_api: got input tasks: {target_tasks_list}")
+			for task in target_tasks_list:
 				self.task_manager.delete(task)
-			return render_template("blank_page.html", page_text = f"tasks {target_dir_list} removed")
+			return redirect("/ui/show-all-tasks")
 		
 		
 		@web_app.route("/ui/show-log", methods = ["GET"])
@@ -284,7 +274,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = log_text.replace("\n", "<br>\n"))
 		
 		
-		# all actions in one form
 		@web_app.route("/ui/actions", methods = ["GET"])
 		def actions():
 			if request.method == "GET":
@@ -446,7 +435,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return render_template("blank_page.html", page_text = f"New task CompileDirTask for new_dir {path_to_new_dir}, input dir list: {[idir.full_path for idir in input_dir_list]} created")
 		
 		
-		# API
 		@web_app.route("/api/get_dir_full_path_by_id", methods = ["GET"])
 		def get_dir_full_path_by_id_api():
 			target_dir = get_dir_objects_from_request(request)[0]
@@ -475,7 +463,6 @@ class DuplicateCheckerFlask(DuplicateChecker):
 			return json.dumps(target_task.dict_for_json)
 		
 		
-		# get_file_by_id_to_js
 		@web_app.route("/api/get_file_by_id_to_js", methods = ["GET"])
 		def get_file_by_id_to_js():
 			target_file = get_file_objects_from_request(request, get_by_id = self.file_manager.get_by_id)[0]
